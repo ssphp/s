@@ -4,6 +4,7 @@ class s_user
 {
     function index()
     {
-        return  "user.index";
+    	$list = M("fuwu.student")->query("select * from student limit ?", [10])->all();
+    	return $list;
     }
 }
