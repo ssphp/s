@@ -12,7 +12,7 @@ class Manager
     protected $server;
 
     /**
-     * @var \SwooleTW\Http\Server\Application
+     * @var \MSVC
      */
     protected $application;
 
@@ -165,6 +165,7 @@ class Manager
             return;
         }
 
+        $response->header('Content-Type', 'application/json; charset=UTF-8');
         $response->end($data);
         $response = null;
         $swooleRequest = null;
@@ -186,7 +187,7 @@ class Manager
     /**
      * Get application.
      *
-     * @return \SwooleTW\Http\Server\Application
+     * @return \MSVC
      */
     protected function getApplication()
     {

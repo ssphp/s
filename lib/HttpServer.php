@@ -183,13 +183,16 @@ class HttpServer
         $pid = $this->getPid();
         $isRunning = $this->isRunning($pid);
 
-        $this->table(['Name', 'Value'], [
-            ['PHP Version', 'Version' => phpversion()],
-            ['Swoole Version', 'Version' => swoole_version()],
-            ['Laravel Version', $this->getApplication()->getVersion()],
-            ['Server Status', $isRunning ? 'Online' : 'Offline'],
-            ['PID', $isRunning ? $pid : 'None'],
-        ]);
+        $data = [
+            'PHP Version' =>  phpversion(),
+            'Swoole Version' => swoole_version(),
+            'Server Status' => $isRunning ? 'Online' : 'Offline',
+            'PID' =>  $isRunning ? $pid : 'None',
+        ];
+
+        foreach ($data as $k => $v) {
+            echo $k." : ".$v.PHP_EOL;
+        }
     }
 
     /**

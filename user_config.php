@@ -17,6 +17,10 @@ $config = [
 //        'fuwuwrite' => ['rm-bp11666r7y6x7z9zpao.mysql.rds.aliyuncs.com:3306;dbname=i_test', 'gql_readonly', 'vQW4UYTgRAhaiV7L'],
     ],
     'VIEW_REPLACE' => [
-
     ],
 ];
+
+define('REDIS_HOST', 'redis.hfjy.red');
+define('REDIS_PORT', 6379);
+define('REDIS_PWD', '');
+define('REDIS_DATABASE', 6);
