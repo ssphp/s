@@ -1,0 +1,10 @@
+#!/usr/bin/env php
+<?php
+include_once __DIR__."/lib/HttpServer.php";
+
+$argv = $_SERVER['argv'];
+array_shift($argv);
+
+$configFile = __DIR__ . '/swoole_config.php';
+
+new HttpServer($argv, $configFile);
