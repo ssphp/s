@@ -234,6 +234,8 @@ class MSVC
             syslog(LOG_WARNING, "MSVC log file [$log_file_file] can't access!\n[$case] " . $message);
             closelog();
         }
+
+        MSVC::$_all_errors = [];
     }
 
     static function getAllErrors()
@@ -546,6 +548,8 @@ class MSVC
                     $_FILES,
                     MSVC::$_call_logs
                 ], 'access');
+
+                MSVC::$_call_logs = [];
                 // MSVC::tt( 'finish' );
                 return $result;
             }

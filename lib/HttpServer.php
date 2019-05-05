@@ -93,8 +93,7 @@ class HttpServer
         $this->info('Starting swoole http server...');
         $this->info("Swoole http server started: <http://{$host}:{$port}>");
         if ($this->isDaemon()) {
-            $this->info('> (You can run this command to ensure the ' .
-                'swoole_http_server process is running: ps aux|grep "swoole")');
+            $this->info('> (You can run this command to ensure the swoole_http_server process is running: ps aux|grep "swoole")');
         }
 
         $this->registerManager();
@@ -122,10 +121,7 @@ class HttpServer
             exit(1);
         }
 
-        // I don't known why Swoole didn't trigger "onShutdown" after sending SIGTERM.
-        // So we should manually remove the pid file.
         $this->removePidFile();
-
         $this->info('> success');
     }
 
@@ -151,7 +147,7 @@ class HttpServer
         $pid = $this->getPid();
 
         if (!$this->isRunning($pid)) {
-            $this->error('Failed! There is no swoole_http_server process running.');
+            $this->error('Failed! There is no swoole_http_server process running');
             exit(1);
         }
 
@@ -168,30 +164,22 @@ class HttpServer
     }
 
     /**
-     * Display PHP and Swoole misc info.
-     */
-    protected function infos()
-    {
-        $this->showInfos();
-    }
-
-    /**
      * Display PHP and Swoole miscs infos.
      */
-    protected function showInfos()
+    protected function infos()
     {
         $pid = $this->getPid();
         $isRunning = $this->isRunning($pid);
 
         $data = [
-            'PHP Version' =>  phpversion(),
+            'PHP Version' => phpversion(),
             'Swoole Version' => swoole_version(),
             'Server Status' => $isRunning ? 'Online' : 'Offline',
-            'PID' =>  $isRunning ? $pid : 'None',
+            'PID' => $isRunning ? $pid : 'None',
         ];
 
         foreach ($data as $k => $v) {
-            echo $k." : ".$v.PHP_EOL;
+            $this->info($k . " : " . $v);
         }
     }
 
@@ -310,13 +298,19 @@ class HttpServer
         return $this->configs['server']['options']['daemonize'];
     }
 
+    /**
+     * echo message
+     */
     protected function info($message)
     {
-        echo $message;
+        echo $message . PHP_EOL;
     }
 
+    /**
+     * echo message
+     */
     protected function error($message)
     {
-        echo $message;
+        echo $message . PHP_EOL;
     }
 }
