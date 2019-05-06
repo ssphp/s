@@ -153,11 +153,18 @@ class Manager
             $_FILES = $request->files;
         }
 
-        $server = $request->server;
-        foreach ($server as $key => $val) {
-            $_SERVER[strtoupper($key)] = $val;
+        $serverKeys = [];
+        if (!empty($server = $request->server)) {
+            foreach ($server as $key => $val) {
+                $key = strtoupper($key);
+                $serverKeys[] = $key;
+                $_SERVER[$key] = $val;
+            }
         }
+
         $_SERVER['HTTP_HOST'] = $_SERVER['REMOTE_ADDR'];
+
+
         $app = $this->getApplication();
         $data = $app::start('MSVC');
 
@@ -165,7 +172,18 @@ class Manager
             return;
         }
 
-        $response->header('Content-Type', 'application/json; charset=UTF-8');
+        unset($_GET, $_POST, $_COOKIE, $_FILES);
+
+        if (!empty($serverKeys)) {
+            foreach ($serverKeys as $key) {
+                unset($_SERVER[$key]);
+            }
+        }
+
+        if ($data[0] === '{' && !empty(json_decode($data, true))) {
+            $response->header('Content-Type', 'application/json; charset=UTF-8');
+        }
+        
         $response->end($data);
         $response = null;
         $swooleRequest = null;
@@ -177,7 +195,6 @@ class Manager
      */
     protected function createApplication()
     {
-        date_default_timezone_set("PRC");
         include __DIR__ . '/MSVC.php';
         $app = new MSVC();
         $app::init("");

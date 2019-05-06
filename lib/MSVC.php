@@ -314,7 +314,6 @@ class MSVC
                 'MSVC',
                 '_shutdownHandler'
             ));
-
             // 初始化路径
             if ($root_path[0] == '.') {
                 if ($root_path[1] == '.')
@@ -335,7 +334,6 @@ class MSVC
             if (MSVC::$_config['LOG_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') MSVC::$_config['LOG_PATH'] = MSVC::$ROOT . MSVC::$_config['LOG_PATH'];
             if (MSVC::$_config['DATA_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') MSVC::$_config['DATA_PATH'] = MSVC::$ROOT . MSVC::$_config['DATA_PATH'];
             if (DIRECTORY_SEPARATOR == '\\') MSVC::$_config['VIEW_CACHE_PATH'] = 'c:/_views/';
-
             // 注册自动加载
             spl_autoload_register([
                 'MSVC',
@@ -365,6 +363,7 @@ class MSVC
                 }
             }
         } catch (Exception $ex) {
+            echo $ex->getMessage();
         }
     }
 
@@ -418,8 +417,8 @@ class MSVC
                 }
                 if (!MSVC::$_site && MSVC::$_config['SITE']['default'] !== null) {
                     MSVC::$_site = MSVC::$_config['SITE']['default'];
-                    $path = $_SERVER['PATH_INFO'];
                 }
+                $path = !empty($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : $_SERVER['REQUEST_URI'];
             } else {
                 MSVC::$_site = $t_site;
             }
@@ -445,10 +444,8 @@ class MSVC
             if (strpos(MSVC::$_config['DATA_PATH'], $site) === false) {
                 MSVC::$_config['DATA_PATH'] .= $site . '/';
             }
-
-            //MSVC::$_config['DATA_PATH'] .= (MSVC::$_site ? MSVC::$_site : 'default') . '/';
+           // MSVC::$_config['DATA_PATH'] .= (MSVC::$_site ? MSVC::$_site : 'default') . '/';
             if (!file_exists(MSVC::$_config['DATA_PATH'])) mkdir(MSVC::$_config['DATA_PATH'], 0755, true);
-
             if ($mode[0] != 'T') {
                 // 启动 session
                 $session_name = MSVC::$_config['SESSION_NAME'];
@@ -473,8 +470,6 @@ class MSVC
                 if (PHP_SAPI != 'cli') session_start();
                 $call_start_time = microtime(true);
             }
-            // MSVC::tt( 'before call' );
-
             $output = null;
             if ($mode[0] != 'T') {
                 // 处理前置回调
@@ -490,8 +485,6 @@ class MSVC
                 } else if (MSVC::$_is_service) {
                     if (!$_POST && ($json = file_get_contents('php://input'))) {
                         if ($json[0] == '{') $_POST = json_decode($json, true);
-                        // else if( $json[0]=='!' )
-                        // $_POST = json_decode( $json, true );
                     }
                     $tmp_paths = explode('	', trim(str_replace('/', '	', $path))); // 路径
                     $service_name = join('.', $tmp_paths);
@@ -501,12 +494,10 @@ class MSVC
                     $output = C($path);
                 }
             }
-
             if ($mode[0] != 'T') {
                 // 处理后置回调
                 if (MSVC::$_config['ONOUT']) $output = MSVC::_callFuncs(array_reverse(MSVC::$_config['ONOUT']), $output);
             }
-
             // 输出结果
             if (is_string($output)) {
 //                if (strpos(MSVC::$_path, '.html') !== false) header('Content-Type: text/html; charset=UTF-8');
@@ -548,9 +539,8 @@ class MSVC
                     $_FILES,
                     MSVC::$_call_logs
                 ], 'access');
+		MSVC::$_call_logs = [];
 
-                MSVC::$_call_logs = [];
-                // MSVC::tt( 'finish' );
                 return $result;
             }
         } catch (Exception $ex) {
@@ -614,7 +604,6 @@ class MSVC
     static public function callController($path)
     {
         if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) throw new Exception("Can't call Controller [$path] in Service!");
-
         // 初始化应用系统路径
         $tmp_paths = explode('	', trim(str_replace('/', '	', $path))); // 路径
         if (!$tmp_paths || !$tmp_paths[0]) $tmp_paths = [
@@ -627,11 +616,13 @@ class MSVC
 
         // 根据路径最后一段处理控制器的方法
         $method = $tmp_paths[count($tmp_paths) - 1];
+/*
         if (!strstr($method, '.')) {
             // 没有 . 表示访问控制器的默认方法
             $tmp_paths[] = 'index.html';
             $method = $tmp_paths[count($tmp_paths) - 1];
         }
+*/
         // nginx 会把 PATH_INFO 处理成 index.php
         if ($method == 'index.php') {
             $method = 'index.html';
@@ -646,18 +637,16 @@ class MSVC
         ], '', $method); // 如果是 .html 去掉 .html 就是控制器的方法
         $method = str_replace('.', '_', $method); // 如果是其他扩展名 将 . 替换为 _ 就是控制器的完整方法名
         unset($tmp_paths[count($tmp_paths) - 1]); // 去掉方法名，路径就是完整的控制器类路径
-
         // 取出对应的控制器的类和方法
         $class_path = join('/', $tmp_paths) . '.php';
         $class_name = 'c_' . join('_', $tmp_paths);
-        if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) die("$class_path | $class_name | $method");
 
+        if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) die("$class_path | $class_name | $method");
         // 定位文件
         $class_file = MSVC::_search('C', $class_path, $site);
         if (!$class_file) throw new Exception("No Controller File $class_path", 404);
         if (!class_exists($class_name)) include $class_file;
         if (!class_exists($class_name)) throw new Exception("No Controller Class $class_file | $class_name", 404);
-
         return MSVC::_doCall($class_name, $method, null);
     }
 
@@ -770,13 +759,11 @@ class MSVC
             $class_path = str_replace('.', '/', $class_name) . '.php';
             $class_name = 's_' . str_replace('.', '_', $class_name);
             if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) die("$class_path | $class_name | $method");
-
             // 定位文件
             $class_file = MSVC::_search('S', $class_path, $site);
             if (!$class_file) throw new Exception("No Service File $class_path", 404);
             if (!class_exists($class_name)) include $class_file;
             if (!class_exists($class_name)) throw new Exception("No Service Class $class_file | $class_name", 404);
-
             MSVC::$_sercice_call_counting++;
             $result = MSVC::_doCall($class_name, $method, $args);
             MSVC::$_sercice_call_counting--;
@@ -1587,7 +1574,6 @@ function MSVC($root_path = '..')
     MSVC::init($root_path);
     echo MSVC::start('MSVC');
 }
-
 /**
  * 启动 MVC 框架
  *
