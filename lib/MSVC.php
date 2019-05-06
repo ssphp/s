@@ -503,7 +503,7 @@ class MSVC
 //                if (strpos(MSVC::$_path, '.html') !== false) header('Content-Type: text/html; charset=UTF-8');
                 echo $output;
             } else if ($output !== null) {
-                header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
+                // header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
                 echo json_encode($output, $mode[0] != 'T' ? JSON_UNESCAPED_UNICODE : JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
 

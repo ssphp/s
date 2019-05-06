@@ -10,14 +10,14 @@ $configs = [
     |
      */
     'server' => [
-        'host' => '127.0.0.1',
+        'host' => '10.52.23.17',
         'port' => '1215',
-        'public_path' => __DIR__.'/public',
+        'public_path' => __DIR__ . '/public',
         // Determine if to use swoole to respond request for static files
         'handle_static_files' => true,
         'options' => [
-            'pid_file' => __DIR__.'/logs/ssw.pid',
-            'log_file' => __DIR__.'/logs/ssw.log',
+            'pid_file' => __DIR__ . '/logs/ssw.pid',
+            'log_file' => __DIR__ . '/logs/ssw.log',
             'daemonize' => false,
             // Normally this value should be 1~4 times larger according to your cpu cores.
             'reactor_num' => 4,
@@ -38,6 +38,12 @@ $configs = [
             'ssl_key_file' => null,
         ],
     ],
+    /*
+    |--------------------------------------------------------------------------
+    | 是否启用服务注册&发现
+    |--------------------------------------------------------------------------
+     */
+    'service_enable' => true,
     /*
     |--------------------------------------------------------------------------
     | Enable to turn on websocket server.

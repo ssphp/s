@@ -13,7 +13,7 @@ class c_index
      */
     public function index()
     {
-        return "this is msvc-swoole";
+        return ['code' => 200, 'message' => "this is msvc-swoole"];
     }
 
     /**
