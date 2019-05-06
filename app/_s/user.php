@@ -136,6 +136,6 @@ class s_user
         $pid = getmypid();
         $meo = memory_get_usage();
         $dateTime = date("Y-m-d H:i:s");
-        file_put_contents("/var/www/ssw.log", $dateTime . ' ' . $pid . ' ' . $meo . ' ' . json_encode($list) . '\n', FILE_APPEND);
+        file_put_contents("/var/www/ssw.log", $dateTime . ' ' . $pid . ' ' . $meo . ' ' . json_encode($list) . "\n", FILE_APPEND);
     }
 }
