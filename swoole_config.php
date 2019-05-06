@@ -18,7 +18,7 @@ $configs = [
         'options' => [
             'pid_file' => __DIR__ . '/logs/ssw.pid',
             'log_file' => __DIR__ . '/logs/ssw.log',
-            'daemonize' => false,
+            'daemonize' => true,
             // Normally this value should be 1~4 times larger according to your cpu cores.
             'reactor_num' => 4,
             'worker_num' => 8,

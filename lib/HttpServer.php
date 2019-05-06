@@ -96,28 +96,13 @@ class HttpServer
             $this->info('> (You can run this command to ensure the swoole_http_server process is running: ps aux|grep "swoole")');
         }
 
-        if ($this->configs['service_enable']) {
-            //服务注册
-            $this->_serviceStart($host, $port);
-        }
+        
 
         $this->registerManager();
         $this->manager->run();
     }
 
-    /**
-     * 服务注册&发现
-     *
-     * @param $ip 服务监听ip
-     */
-    private function _serviceStart(string $ip, int $port)
-    {
-        include __DIR__ . '/Discover.php';
-        $discover = new Discover();
-        $discover->register($ip, $port);
-
-    }
-
+    
     /**
      * Stop swoole_http_server.
      */

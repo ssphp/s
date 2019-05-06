@@ -59,6 +59,7 @@ class Manager
      */
     protected function initialize()
     {
+        // echo "\n this is initialize \n ";
         $this->setProcessName('manager process');
 
         $this->createSwooleHttpServer();
@@ -101,6 +102,7 @@ class Manager
 
             if (method_exists($this, $listener)) {
                 $this->server->on($event, [$this, $listener]);
+                echo "\n $event:$listener\n";
             } else {
                 $this->server->on($event, function () use ($event) {
                     $event = sprintf('http.%s', $event);
@@ -117,6 +119,13 @@ class Manager
     {
         $this->setProcessName('master process');
         $this->createPidFile();
+
+        if ($this->configs['service_enable']) {
+            $host = $this->configs['server']['host'];
+            $port = $this->configs['server']['port'];
+            //服务注册
+            $this->_serviceStart($host, $port);
+        }
     }
 
     /**
@@ -164,7 +173,6 @@ class Manager
 
         $_SERVER['HTTP_HOST'] = $_SERVER['REMOTE_ADDR'];
 
-
         $app = $this->getApplication();
         $data = $app::start('MSVC');
 
@@ -183,7 +191,7 @@ class Manager
         if ($data[0] === '{' && !empty(json_decode($data, true))) {
             $response->header('Content-Type', 'application/json; charset=UTF-8');
         }
-        
+
         $response->end($data);
         $response = null;
         $swooleRequest = null;
@@ -221,6 +229,31 @@ class Manager
     public function onShutdown()
     {
         $this->removePidFile();
+        //微服务注册信息释放
+        $this->_destroy();
+    }
+
+    /**
+     * 微服务注册信息注销
+     */
+    private function _destroy()
+    {
+        $host = $this->configs['server']['host'];
+        $port = $this->configs['server']['port'];
+        $this->discover->destroy($host, $port);
+    }
+
+    /**
+     * 服务注册&发现
+     *
+     * @param $ip 服务监听ip
+     */
+    private function _serviceStart(string $ip, int $port)
+    {
+        include __DIR__ . '/Discover.php';
+        $this->discover = new Discover();
+        $this->discover->register($ip, $port);
+
     }
 
     /**
@@ -243,7 +276,7 @@ class Manager
 
         $dirname = dirname($pidFile);
         if (!is_dir($dirname)) {
-           mkdir($dirname, 0755, true);
+            mkdir($dirname, 0755, true);
         }
 
         file_put_contents($pidFile, $pid);

@@ -57,6 +57,15 @@ class Discover
     }
 
     /**
+     * 注销服务
+     */
+    public function destroy(string $serviceIp, int $port)
+    {
+        $this->redis->hDel($this->config['service']['appName'], $serviceIp . ':' . $port);
+
+    }
+
+    /**
      * 队列通知其他所有服务
      */
     private function push($appName, $addr, $weight)
@@ -65,4 +74,5 @@ class Discover
 
         $this->redis->publish($this->config['service']['registryPrefix'] . 'CH_' . $appName, $addr . ' ' . $weight);
     }
+
 }
