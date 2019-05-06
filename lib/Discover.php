@@ -25,6 +25,8 @@ class Discover
     }
     /**
      * Load configs.
+     *
+     * @param $configFile
      */
     protected function loadConfigs($configFile)
     {
@@ -58,6 +60,9 @@ class Discover
 
     /**
      * 注销服务
+     *
+     * @param $serviceIp
+     * @param $port
      */
     public function destroy(string $serviceIp, int $port)
     {
@@ -67,6 +72,10 @@ class Discover
 
     /**
      * 队列通知其他所有服务
+     *
+     * @param $appName
+     * @param $addr
+     * @param $weight
      */
     private function push($appName, $addr, $weight)
     {
