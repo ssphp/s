@@ -17,6 +17,16 @@ class Manager
     protected $application;
 
     /**
+     * 与其他service的http2长连
+     */
+    private $caller;
+
+    /**
+     * 服务发现&注册中心
+     */
+    public $discover;
+
+    /**
      * Server events.
      *
      * @var array
@@ -43,6 +53,19 @@ class Manager
      */
     public function run()
     {
+        /**
+         * 服务注册&发现启动
+         */
+        if ($this->configs['service_enable']) {
+            // var_dump('服务注册&发现启动');
+            $host = $this->configs['server']['host'];
+            $port = $this->configs['server']['port'];
+            //服务注册
+            $this->_serviceStart($host, $port);
+            include __DIR__ . '/Caller.php';
+            //加载Caller
+            $this->caller = new Caller($this->discover);
+        }
         $this->server->start();
     }
 
@@ -89,6 +112,7 @@ class Manager
     {
         $config = $this->configs['server']['options'];
 
+        var_dump($config);
         $this->server->set($config);
     }
 
@@ -102,11 +126,10 @@ class Manager
 
             if (method_exists($this, $listener)) {
                 $this->server->on($event, [$this, $listener]);
-                echo "\n $event:$listener\n";
+                // echo "\n $event:$listener\n";
             } else {
                 $this->server->on($event, function () use ($event) {
                     $event = sprintf('http.%s', $event);
-
                 });
             }
         }
@@ -119,13 +142,6 @@ class Manager
     {
         $this->setProcessName('master process');
         $this->createPidFile();
-
-        if ($this->configs['service_enable']) {
-            $host = $this->configs['server']['host'];
-            $port = $this->configs['server']['port'];
-            //服务注册
-            $this->_serviceStart($host, $port);
-        }
     }
 
     /**
@@ -174,9 +190,18 @@ class Manager
         $_SERVER['HTTP_HOST'] = $_SERVER['REMOTE_ADDR'];
 
         $app = $this->getApplication();
-        $data = $app::start('MSVC');
+        var_dump('this is Manager->onRequest app->start 1');
 
+        //将swoole的response传递到框架中
+        $app::$swoole_response = $response;
+        $data = $app::start('MSVC');
+        var_dump('this is Manager->onRequest app->start 2');
+
+        var_dump($data);
         if (!$this->server->exist($request->fd)) {
+            var_dump('$request->fd is null');
+            var_dump($request->fd);
+
             return;
         }
 
@@ -188,7 +213,7 @@ class Manager
             }
         }
 
-        if ($data[0] === '{' && !empty(json_decode($data, true))) {
+        if (!empty(json_decode($data, true))) {
             $response->header('Content-Type', 'application/json; charset=UTF-8');
         }
 
@@ -206,6 +231,8 @@ class Manager
         include __DIR__ . '/MSVC.php';
         $app = new MSVC();
         $app::init("");
+        $app::$is_swoole = true;
+        $app::$caller = $this->caller;
         return $this->application = $app;
     }
 
@@ -253,7 +280,6 @@ class Manager
         include __DIR__ . '/Discover.php';
         $this->discover = new Discover();
         $this->discover->register($ip, $port);
-
     }
 
     /**

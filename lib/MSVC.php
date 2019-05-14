@@ -9,6 +9,7 @@
 // +----------------------------------------------------------------------+
 class MSVC
 {
+
     static $ROOT = null;
     private static $_config = [
         'SITE' => [],
@@ -31,7 +32,7 @@ class MSVC
         'ONREWRITE' => [],
         'ONIN' => [],
         'ONOUT' => [],
-        'ONERROR' => []
+        'ONERROR' => [],
     ];
     private static $_site_paths = [];
     private static $_site_view_tags = [];
@@ -60,7 +61,7 @@ class MSVC
         '<!--\s*else\s*if\s+(.+?)\s*-->',
         '{(.+?\\?.+?\\:.+?)}',
         '{\$(.+?)}',
-        '{#(.+?)}'
+        '{#(.+?)}',
     ];
     private static $_view_tag_replaces = [
         '<?php $tmp_view_file = MSVC::_makeViewFile( "\\1" ); if( $tmp_view_file ) include $tmp_view_file; ?>',
@@ -74,41 +75,97 @@ class MSVC
         '<?php }else if( \\1 ){ ?>',
         '<?=($\\1)?>',
         '<?=$\\1?>',
-        '<?=MSVC::getLang("\\1")?>'
+        '<?=MSVC::getLang("\\1")?>',
     ];
 
-    static function getSite()
+    //http response
+    public static $swoole_response;
+
+    public static $is_swoole;
+
+    public static $caller;
+
+    /**
+     * 调用其他服务
+     */
+    public static function caller()
+    { }
+
+    public static function header($string, $value = '', $replace = true, $http_response_code = 0)
+    {
+        if (self::$is_swoole) {
+            self::$swoole_response->header($string, $value);
+            if ($http_response_code > 0) {
+                self::$swoole_response->status($http_response_code);
+            }
+        } else {
+            header($string . ': ' . $value, $replace, $http_response_code);
+        }
+    }
+
+    public static function setcookie($name, $value = "", $expire = 0, $path = "", $domain = "", $secure = false, $httponly = false)
+    {
+        $ret = false;
+        if (self::$is_swoole) {
+            $ret = self::$swoole_response->cookie($name, $value, $expire, $path, $domain, $secure, $httponly);
+        } else {
+            $ret = setcookie($name, $value, $expire, $path, $domain, $secure, $httponly);
+        }
+        return $ret;
+    }
+
+    public static function end()
+    {
+        if (self::$is_swoole) {
+            $result = ob_get_contents();
+            self::$swoole_response->end($result);
+            // return
+        }
+        // exit();
+        // return;
+    }
+
+    public static function file_get_contents()
+    {
+        if (self::$is_swoole) {
+            return self::$swoole_request->rawContent();
+        }
+        return file_get_contents("php://input");
+    }
+
+    public static function getSite()
     {
         return MSVC::$_site;
     }
 
-    static function getRunMode()
+    public static function getRunMode()
     {
         return MSVC::$_mode;
     }
 
-    static function getResponseCode()
+    public static function getResponseCode()
     {
         return MSVC::$_response_code;
     }
 
-    static function getResponseHeaders()
+    public static function getResponseHeaders()
     {
         return MSVC::$_response_headers;
     }
 
-    static function isDev()
+    public static function isDev()
     {
         return MSVC::$_display_errors;
     }
 
-    static private function _loadSite($site)
+    private static function _loadSite($site)
     {
+
         $config_file = $site ? MSVC::$ROOT . "$site/config.php" : MSVC::$ROOT . "config.php";
         $user_config_file = str_replace('config.php', 'user_config.php', $config_file);
         $check_config_files = [
             $config_file,
-            $user_config_file
+            $user_config_file,
         ];
         if ($site) {
             $check_config_files[] = MSVC::$ROOT . "config.php";
@@ -124,33 +181,47 @@ class MSVC
         // }
 
         if (file_exists($config_file)) {
+
             $config = null;
-            include($config_file);
+            include $config_file;
 
-            if (file_exists($user_config_file)) include($user_config_file);
+            if (file_exists($user_config_file)) {
+                include $user_config_file;
+            }
 
-            if ($config === null) $config = [];
+            if ($config === null) {
+                $config = [];
+            }
         }
 
         if ($config) {
+
             if ($config['SERVICE']) {
                 // 确保 SERVICE 配置中路径都是 . 结尾，url都是 / 结尾
                 $service_config = [];
-                foreach ($config['SERVICE'] as $part => $url)
+                foreach ($config['SERVICE'] as $part => $url) {
                     $service_config[$part[strlen($part) - 1] != '.' ? $part . '.' : $part] = $url[strlen($url) - 1] != '/' ? $url . '/' : $url;
+                }
+
                 $config['SERVICE'] = $service_config;
             }
 
-            foreach (MSVC::$_config as $key => &$configs)
-                if ($config[$key]) if (is_array($config[$key]))
-                    $configs = array_merge($configs, $config[$key]);
-                else if (strpos($site, 'modules/') === false) // 其他设置忽略模块中的配置
-                    $configs = $config[$key];
+            foreach (MSVC::$_config as $key => &$configs) {
+                if ($config[$key]) {
+                    if (is_array($config[$key])) {
+                        $configs = array_merge($configs, $config[$key]);
+                    } else if (strpos($site, 'modules/') === false) // 其他设置忽略模块中的配置
+                    {
+                        $configs = $config[$key];
+                    }
+                }
+            }
 
-            foreach ($config as $key => $value)
+            foreach ($config as $key => $value) {
                 if (!MSVC::$_config[$key]) {
                     MSVC::$_config[$key] = $value;
                 }
+            }
         }
 
         MSVC::$_site_paths[$site] = array();
@@ -163,7 +234,7 @@ class MSVC
 
         MSVC::$_site_view_replace[$site] = $site ? MSVC::$_site_view_replace[''] : [
             [],
-            []
+            [],
         ];
         if ($config['VIEW_REPLACE']) {
             foreach ($config['VIEW_REPLACE'] as $k => $v) {
@@ -175,46 +246,56 @@ class MSVC
 
         if ($config['VIEW_TAG']) {
             MSVC::$_site_view_tags[$site] = $config['VIEW_TAG'];
-            foreach (MSVC::$_site_view_tags[$site] as &$tag)
+            foreach (MSVC::$_site_view_tags[$site] as &$tag) {
                 $tag = "~$tag~i";
+            }
         } else if ($site) {
             MSVC::$_site_view_tags[$site] = MSVC::$_site_view_tags[''];
         } else {
             MSVC::$_site_view_tags[$site] = MSVC::$_default_view_tag_replaces;
-            foreach (MSVC::$_site_view_tags[$site] as &$tag)
+            foreach (MSVC::$_site_view_tags[$site] as &$tag) {
                 $tag = "~$tag~i";
+            }
         }
 
         // MSVC::_setCache( $config_file, [MSVC::$_config, MSVC::$_site_paths, MSVC::$_site_view_replace, MSVC::$_site_view_tags], $check_config_files );
     }
 
-    static private function _callFuncs($funcs, $data)
+    private static function _callFuncs($funcs, $data)
     {
         if ($funcs && is_array($funcs)) {
             foreach ($funcs as $func) {
                 $result = $func($data);
-                if ($result !== null) $data = $result;
+                if ($result !== null) {
+                    $data = $result;
+                }
             }
         }
         return $data;
     }
 
-    static private function _makeError($message)
+    private static function _makeError($message)
     {
         MSVC::log($message, 'error');
         if (MSVC::$_config['ONERROR']) {
-            if (MSVC::$_config['ONERROR']) MSVC::_callFuncs(MSVC::$_config['ONERROR'], $message);
+            if (MSVC::$_config['ONERROR']) {
+                MSVC::_callFuncs(MSVC::$_config['ONERROR'], $message);
+            }
         } else if (!MSVC::$_is_service && MSVC::$_display_errors && MSVC::$_mode != 'MS') {
-            if (MSVC::$_mode[0] != 'T')
+            if (MSVC::$_mode[0] != 'T') {
                 echo nl2br("\n" . $message);
-            else
+            } else {
                 echo "\n" . $message;
+            }
         }
     }
 
-    static function log($message, $case = 'info')
+    public static function log($message, $case = 'info')
     {
-        if (!is_string($message)) $message = json_encode($message, JSON_UNESCAPED_UNICODE);
+        if (!is_string($message)) {
+            $message = json_encode($message, JSON_UNESCAPED_UNICODE);
+        }
+
         $log_time = date('Y-m-d H:i:s');
         if ($case == 'error') {
             ob_start();
@@ -227,7 +308,10 @@ class MSVC
         $message = "$log_time	$message\n";
 
         $log_file_path = MSVC::$_config['LOG_PATH'] . (MSVC::$_site ? MSVC::$_site : 'default') . '/' . $case;
-        if (!file_exists($log_file_path)) mkdir($log_file_path, 0755, true);
+        if (!file_exists($log_file_path)) {
+            mkdir($log_file_path, 0755, true);
+        }
+
         $log_file_file = $log_file_path . '/' . date('Ymd') . '.log';
         if (file_put_contents($log_file_file, $message, FILE_APPEND) === false) {
             openlog('MSVC', LOG_PID, LOG_LOCAL0);
@@ -238,19 +322,21 @@ class MSVC
         MSVC::$_all_errors = [];
     }
 
-    static function getAllErrors()
+    public static function getAllErrors()
     {
         return MSVC::$_all_errors;
     }
 
-    static function _errorHandler($errno, $errstr, $errfile, $errline, $errcontext)
+    public static function _errorHandler($errno, $errstr, $errfile, $errline, $errcontext)
     {
-        if ($errno == E_DEPRECATED || $errno == E_USER_DEPRECATED || $errno == E_STRICT ||
-            ($errno == E_NOTICE && (strstr($errstr, 'ndefined') || strstr($errstr, 'Uninitialized')))
-        ) return true;
+        if (
+            $errno == E_DEPRECATED || $errno == E_USER_DEPRECATED || $errno == E_STRICT || ($errno == E_NOTICE && (strstr($errstr, 'ndefined') || strstr($errstr, 'Uninitialized')))
+        ) {
+            return true;
+        }
 
         if ($errno == E_ERROR || $errno == E_WARNING || $errno == E_USER_ERROR || $errno == E_USER_WARNING) {
-// 			if( $errno == E_ERROR || $errno == E_USER_ERROR ) header( 'HTTP/1.1 500 Internal Server Error' );
+            //             if( $errno == E_ERROR || $errno == E_USER_ERROR ) header( 'HTTP/1.1 500 Internal Server Error' );
             $error_str = "$errno, $errstr, $errfile, $errline";
             MSVC::_makeError($error_str);
         } else if (MSVC::$_display_errors) {
@@ -265,7 +351,7 @@ class MSVC
     // MSVC::_makeError( $ex->getMessage()."\n".$ex->getTraceAsString() );
     // return true;
     // }
-    static function _shutdownHandler()
+    public static function _shutdownHandler()
     {
         if ($error = error_get_last()) {
             $errno = $error['type'];
@@ -273,10 +359,12 @@ class MSVC
                 $error_str = join(', ', error_get_last());
                 if ($errno == E_ERROR || $errno == E_USER_ERROR) {
                     if (MSVC::$_mode == 'MS') {
-                        header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
+                        // header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
+                        self::header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
                         echo json_encode(FAILED('未知错误', 500), JSON_UNESCAPED_UNICODE);
                     } else {
-                        header('HTTP/1.1 500 Internal Server Error');
+                        // header('HTTP/1.1 500 Internal Server Error');
+                        self::header('HTTP/1.1 500 Internal Server Error');
                     }
                 }
                 MSVC::_makeError($error_str);
@@ -284,9 +372,11 @@ class MSVC
         }
     }
 
-    static private function _autoload($name)
+    private static function _autoload($name)
     {
-        if (isset(MSVC::$_auto_classes[$name])) include MSVC::$_auto_classes[$name];
+        if (isset(MSVC::$_auto_classes[$name])) {
+            include MSVC::$_auto_classes[$name];
+        }
     }
 
     // static function tt( $name )
@@ -301,28 +391,32 @@ class MSVC
     /**
      * 启动
      */
-    static function init($root_path)
+    public static function init($root_path)
     {
         try {
             // 设置错误处理函数
             set_error_handler(array(
                 'MSVC',
-                '_errorHandler'
+                '_errorHandler',
             ), E_ALL);
             // set_exception_handler( array('MSVC', '_exceptionHandler'));
             register_shutdown_function(array(
                 'MSVC',
-                '_shutdownHandler'
+                '_shutdownHandler',
             ));
             // 初始化路径
-            if ($root_path[0] == '.') {
-                if ($root_path[1] == '.')
-                    $root_path = dirname(getcwd());
-                else
-                    $root_path = getcwd();
-            } else if ($root_path[0] != '/') {
-                $root_path = getcwd() . '/' . $root_path;
-            }
+            // if ($root_path[0] == '.') {
+            //     if ($root_path[1] == '.') {
+            //         $root_path = dirname(getcwd());
+            //     } else {
+            //         $root_path = getcwd();
+            //     }
+
+            // } else if ($root_path[0] != '/') {
+            //     $root_path = getcwd() . '/' . $root_path;
+            // }
+            $root_path = __DIR__ . '/..';
+
             MSVC::$ROOT = $root_path . '/';
             MSVC::$_config['LOG_PATH'] = MSVC::$ROOT . MSVC::$_config['LOG_PATH'];
             MSVC::$_config['DATA_PATH'] = MSVC::$ROOT . MSVC::$_config['DATA_PATH'];
@@ -330,14 +424,26 @@ class MSVC
             // 载入基本配置
             MSVC::$_display_errors = ini_get('display_errors');
             MSVC::_loadSite('');
-            if (MSVC::$_config['LANG_PATH'][0] != '/') MSVC::$_config['LANG_PATH'] = MSVC::$ROOT . MSVC::$_config['LANG_PATH'];
-            if (MSVC::$_config['LOG_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') MSVC::$_config['LOG_PATH'] = MSVC::$ROOT . MSVC::$_config['LOG_PATH'];
-            if (MSVC::$_config['DATA_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') MSVC::$_config['DATA_PATH'] = MSVC::$ROOT . MSVC::$_config['DATA_PATH'];
-            if (DIRECTORY_SEPARATOR == '\\') MSVC::$_config['VIEW_CACHE_PATH'] = 'c:/_views/';
+            if (MSVC::$_config['LANG_PATH'][0] != '/') {
+                MSVC::$_config['LANG_PATH'] = MSVC::$ROOT . MSVC::$_config['LANG_PATH'];
+            }
+
+            if (MSVC::$_config['LOG_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') {
+                MSVC::$_config['LOG_PATH'] = MSVC::$ROOT . MSVC::$_config['LOG_PATH'];
+            }
+
+            if (MSVC::$_config['DATA_PATH'][0] != '/' && DIRECTORY_SEPARATOR != '\\') {
+                MSVC::$_config['DATA_PATH'] = MSVC::$ROOT . MSVC::$_config['DATA_PATH'];
+            }
+
+            if (DIRECTORY_SEPARATOR == '\\') {
+                MSVC::$_config['VIEW_CACHE_PATH'] = 'c:/_views/';
+            }
+
             // 注册自动加载
             spl_autoload_register([
                 'MSVC',
-                '_autoload'
+                '_autoload',
             ]);
 
             // 处理 lib 自动加载
@@ -347,14 +453,20 @@ class MSVC
                 if ($d) {
                     while ($f = $d->read()) {
                         $full_path = MSVC::$ROOT . 'lib/' . $f;
-                        if ($f[0] == '.') continue;
+                        if ($f[0] == '.') {
+                            continue;
+                        }
+
                         if (is_dir($full_path)) {
                             $loader_path = "$full_path/loader.php";
                             $class_path = "$full_path/$f.php";
                             if (file_exists($loader_path)) // 自动引用 loader.php 处理自动载入初始化
+                            {
                                 include $loader_path;
-                            else if (file_exists($class_path)) // 将入口类放入自动加载列表
+                            } else if (file_exists($class_path)) // 将入口类放入自动加载列表
+                            {
                                 MSVC::$_auto_classes[$f] = $class_path;
+                            }
                         } else if (strpos($f, '.php') !== false) {
                             MSVC::$_auto_classes[substr($f, 0, -4)] = $full_path;
                         }
@@ -367,30 +479,55 @@ class MSVC
         }
     }
 
+    private static function _test_log($msg, $title = '')
+    {
+        echo "\n\n--------------------------------------- $title--------------------------------------\n";
+        var_dump($msg);
+        echo "--------------------------------------end $title--------------------------------------\n\n";
+    }
+
     /**
      * 启动
      */
-    static function start($mode = 'MSVC')
+    public static function start($mode = 'MSVC')
     {
         MSVC::$_mode = $mode;
-        if (!ini_get('date.timezone')) ini_set('date.timezone', 'PRC');
+        if (!ini_get('date.timezone')) {
+            ini_set('date.timezone', 'PRC');
+        }
+
         if ($mode == 'MS') {
             ini_set('display_errors', false);
         }
 
         try {
             if ($mode[0] != 'T') {
-                if ($_SERVER['PATH_INFO'] == '/favicon.ico') exit();
+                if ($_SERVER['PATH_INFO'] == '/favicon.ico') {
+                    // exit();
+                    return;
+                }
+
                 ob_start();
             }
 
             // 限制 Test Task 必须使用命令行调用
             if ($mode[0] == 'T') {
-                if (PHP_SAPI != 'cli') return E("call $mode must on cli!\n");
-                if ($GLOBALS['argc'] < 2) return E("call $mode must have args!\n");
+                if (PHP_SAPI != 'cli') {
+                    return E("call $mode must on cli!\n");
+                }
+
+                if ($GLOBALS['argc'] < 2) {
+                    return E("call $mode must have args!\n");
+                }
+
                 list($t_site, $t_class_path) = explode('.', $GLOBALS['argv'][1], 2);
-                if(!$t_site) $t_site = 'default';
-                if (!$t_site || !$t_class_path) return E("call $mode must have args!\n");
+                if (!$t_site) {
+                    $t_site = 'default';
+                }
+
+                if (!$t_site || !$t_class_path) {
+                    return E("call $mode must have args!\n");
+                }
             }
 
             if ($mode[0] != 'T') {
@@ -404,7 +541,9 @@ class MSVC
                 }
 
                 // 处理前置回调
-                if (MSVC::$_config['ONREWRITE']) $request = MSVC::_callFuncs(MSVC::$_config['ONREWRITE'], $request);
+                if (MSVC::$_config['ONREWRITE']) {
+                    $request = MSVC::_callFuncs(MSVC::$_config['ONREWRITE'], $request);
+                }
 
                 // 定位站点
                 $path = null;
@@ -415,6 +554,7 @@ class MSVC
                         break;
                     }
                 }
+
                 if (!MSVC::$_site && MSVC::$_config['SITE']['default'] !== null) {
                     MSVC::$_site = MSVC::$_config['SITE']['default'];
                 }
@@ -423,10 +563,18 @@ class MSVC
                 MSVC::$_site = $t_site;
             }
 
-            if (MSVC::$_site === null) throw new Exception("No Site $request", 403);
+            if (MSVC::$_site === null) {
+                throw new Exception("No Site $request", 403);
+            }
 
-            if (MSVC::$_config['MODE'][MSVC::$_site]) $mode = MSVC::$_config['MODE'][MSVC::$_site];
-            if ($mode == 'MVC' || $mode[0] == 'T') MSVC::$_config['ENABLE_MSVC_CROSS'] = true;
+            if (MSVC::$_config['MODE'][MSVC::$_site]) {
+                $mode = MSVC::$_config['MODE'][MSVC::$_site];
+            }
+
+            if ($mode == 'MVC' || $mode[0] == 'T') {
+                MSVC::$_config['ENABLE_MSVC_CROSS'] = true;
+            }
+
             MSVC::$_is_service = $mode == 'MS';
             $site_path = MSVC::$ROOT . MSVC::$_site;
 
@@ -435,17 +583,31 @@ class MSVC
                 MSVC::_loadSite(MSVC::$_site);
             }
 
-            if (MSVC::$_config['LANG_PATH'][strlen(MSVC::$_config['LANG_PATH']) - 1] != '/') MSVC::$_config['LANG_PATH'] .= '/';
-            if (MSVC::$_config['LOG_PATH'][strlen(MSVC::$_config['LOG_PATH']) - 1] != '/') MSVC::$_config['LOG_PATH'] .= '/';
-            if (MSVC::$_config['DATA_PATH'][strlen(MSVC::$_config['DATA_PATH']) - 1] != '/') MSVC::$_config['DATA_PATH'] .= '/';
-            if (MSVC::$_config['VIEW_CACHE_PATH'][strlen(MSVC::$_config['VIEW_CACHE_PATH']) - 1] != '/') MSVC::$_config['VIEW_CACHE_PATH'] .= '/';
+            if (MSVC::$_config['LANG_PATH'][strlen(MSVC::$_config['LANG_PATH']) - 1] != '/') {
+                MSVC::$_config['LANG_PATH'] .= '/';
+            }
+
+            if (MSVC::$_config['LOG_PATH'][strlen(MSVC::$_config['LOG_PATH']) - 1] != '/') {
+                MSVC::$_config['LOG_PATH'] .= '/';
+            }
+
+            if (MSVC::$_config['DATA_PATH'][strlen(MSVC::$_config['DATA_PATH']) - 1] != '/') {
+                MSVC::$_config['DATA_PATH'] .= '/';
+            }
+
+            if (MSVC::$_config['VIEW_CACHE_PATH'][strlen(MSVC::$_config['VIEW_CACHE_PATH']) - 1] != '/') {
+                MSVC::$_config['VIEW_CACHE_PATH'] .= '/';
+            }
 
             $site = MSVC::$_site ? MSVC::$_site : 'default';
             if (strpos(MSVC::$_config['DATA_PATH'], $site) === false) {
                 MSVC::$_config['DATA_PATH'] .= $site . '/';
             }
-           // MSVC::$_config['DATA_PATH'] .= (MSVC::$_site ? MSVC::$_site : 'default') . '/';
-            if (!file_exists(MSVC::$_config['DATA_PATH'])) mkdir(MSVC::$_config['DATA_PATH'], 0755, true);
+            // MSVC::$_config['DATA_PATH'] .= (MSVC::$_site ? MSVC::$_site : 'default') . '/';
+            if (!file_exists(MSVC::$_config['DATA_PATH'])) {
+                mkdir(MSVC::$_config['DATA_PATH'], 0755, true);
+            }
+
             if ($mode[0] != 'T') {
                 // 启动 session
                 $session_name = MSVC::$_config['SESSION_NAME'];
@@ -458,16 +620,22 @@ class MSVC
                 }
                 if (!$session_id) {
                     $prefix = dechex(mt_rand(100000000, 999999999));
-                    if (function_exists('uuid_create'))
+                    if (function_exists('uuid_create')) {
                         $session_id = $prefix . strtolower(str_replace('-', '', uuid_create()));
-                    else
+                    } else {
                         $session_id = str_replace('.', '', uniqid($prefix, true)) . dechex(mt_rand(100000000, 999999999));
+                    }
+
                     if (MSVC::$_config['SESSION_PLACE'] === 'HEADER') {
-                        header('SID: ' . $session_id);
+                        // header('SID: ' . $session_id);
+                        self::header('SID: ' . $session_id);
                     }
                 }
                 session_id($session_id);
-                if (PHP_SAPI != 'cli') session_start();
+                if (PHP_SAPI != 'cli') {
+                    session_start();
+                }
+
                 $call_start_time = microtime(true);
             }
             $output = null;
@@ -484,11 +652,16 @@ class MSVC
                     $output = MSVC::callTask($t_class_path);
                 } else if (MSVC::$_is_service) {
                     if (!$_POST && ($json = file_get_contents('php://input'))) {
-                        if ($json[0] == '{') $_POST = json_decode($json, true);
+                        if ($json[0] == '{') {
+                            $_POST = json_decode($json, true);
+                        }
                     }
                     $tmp_paths = explode('	', trim(str_replace('/', '	', $path))); // 路径
                     $service_name = join('.', $tmp_paths);
-                    if (MSVC::$_display_errors && !$_POST && $_GET) $_POST = $_GET;
+                    if (MSVC::$_display_errors && !$_POST && $_GET) {
+                        $_POST = $_GET;
+                    }
+
                     $output = MSVC::callService($service_name, $_POST);
                 } else {
                     $output = C($path);
@@ -496,11 +669,13 @@ class MSVC
             }
             if ($mode[0] != 'T') {
                 // 处理后置回调
-                if (MSVC::$_config['ONOUT']) $output = MSVC::_callFuncs(array_reverse(MSVC::$_config['ONOUT']), $output);
+                if (MSVC::$_config['ONOUT']) {
+                    $output = MSVC::_callFuncs(array_reverse(MSVC::$_config['ONOUT']), $output);
+                }
             }
             // 输出结果
             if (is_string($output)) {
-//                if (strpos(MSVC::$_path, '.html') !== false) header('Content-Type: text/html; charset=UTF-8');
+                //                if (strpos(MSVC::$_path, '.html') !== false) header('Content-Type: text/html; charset=UTF-8');
                 echo $output;
             } else if ($output !== null) {
                 // header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
@@ -510,7 +685,9 @@ class MSVC
             if ($mode[0] != 'T') {
                 // 记录访问日志
                 if (is_array($output)) {
-                    if ($output['error']) MSVC::$_all_errors[] = "[FAILED]	{$output['error']}	{$output['message']}";
+                    if ($output['error']) {
+                        MSVC::$_all_errors[] = "[FAILED]	{$output['error']}	{$output['message']}";
+                    }
                 }
                 $server_info = [];
                 $server_info['PATH_INFO'] = $_SERVER['PATH_INFO'];
@@ -537,27 +714,31 @@ class MSVC
                     $_COOKIE,
                     $_SESSION,
                     $_FILES,
-                    MSVC::$_call_logs
+                    MSVC::$_call_logs,
                 ], 'access');
-		MSVC::$_call_logs = [];
+                MSVC::$_call_logs = [];
 
                 return $result;
             }
         } catch (Exception $ex) {
+
             // 处理后置回调
             if (MSVC::$_mode == 'MS') {
-                header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
+                self::header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
                 echo json_encode(FAILED($ex->getMessage(), $error_code), JSON_UNESCAPED_UNICODE);
             } else if (MSVC::$_mode[0] != 'T') {
+                //test
+                return $ex->getMessage();
+
                 switch ($error_code) {
                     case 403:
-                        header('HTTP/1.1 403 Forbidden');
+                        self::header('HTTP/1.1 403 Forbidden');
                         break;
                     case 404:
-                        header('HTTP/1.1 404 Not Found');
+                        self::header('HTTP/1.1 404 Not Found');
                         break;
                     default:
-                        header('HTTP/1.1 500 Internal Server Error');
+                        self::header('HTTP/1.1 500 Internal Server Error');
                 }
             }
             MSVC::_makeError($ex->getMessage() . "\n" . $ex->getTraceAsString());
@@ -572,21 +753,26 @@ class MSVC
     /**
      * 按优先级搜索文件
      */
-    static private function _search($type, $file, &$site)
+    private static function _search($type, $file, &$site)
     {
         // 搜索控制器
         $search_sites = MSVC::$_exists_site_path ? [
-            MSVC::$_site
+            MSVC::$_site,
         ] : [];
         $search_sites[] = '';
         // TODO 增加 modules
         foreach ($search_sites as $tmp_site) {
             $path = MSVC::$_site_paths[$tmp_site][$type];
-            if ($path[0] == '/')
+            if ($path[0] == '/') {
                 $path = MSVC::$ROOT . substr($path, 1);
-            else
+            } else {
                 $path = MSVC::$ROOT . ($tmp_site ? "$tmp_site/" : '') . $path;
-            if ($file[0] == '/') $file = substr($file, 1);
+            }
+
+            if ($file[0] == '/') {
+                $file = substr($file, 1);
+            }
+
             $tmp_path = "$path/$file";
             // echo "[$type] [$tmp_site] $tmp_path <br/>\n";
             if (file_exists($tmp_path)) {
@@ -601,39 +787,51 @@ class MSVC
     /**
      * 调用控制器
      */
-    static public function callController($path)
+    public static function callController($path)
     {
-        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) throw new Exception("Can't call Controller [$path] in Service!");
+        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) {
+            throw new Exception("Can't call Controller [$path] in Service!");
+        }
+
         // 初始化应用系统路径
         $tmp_paths = explode('	', trim(str_replace('/', '	', $path))); // 路径
-        if (!$tmp_paths || !$tmp_paths[0]) $tmp_paths = [
-            'index'
-        ]; // 默认访问 index 类
-        if (strstr($tmp_paths[0], '.')) $tmp_paths = [
-            'index',
-            $tmp_paths[0]
-        ]; // 第一段中有 . 直接将这个作为控制器的方法
+        if (!$tmp_paths || !$tmp_paths[0]) {
+            $tmp_paths = [
+                'index',
+            ];
+        }
+        // 默认访问 index 类
+        if (strstr($tmp_paths[0], '.')) {
+            $tmp_paths = [
+                'index',
+                $tmp_paths[0],
+            ];
+        }
+        // 第一段中有 . 直接将这个作为控制器的方法
 
         // 根据路径最后一段处理控制器的方法
         $method = $tmp_paths[count($tmp_paths) - 1];
-/*
-        if (!strstr($method, '.')) {
-            // 没有 . 表示访问控制器的默认方法
-            $tmp_paths[] = 'index.html';
-            $method = $tmp_paths[count($tmp_paths) - 1];
-        }
-*/
+        /*
+if (!strstr($method, '.')) {
+// 没有 . 表示访问控制器的默认方法
+$tmp_paths[] = 'index.html';
+$method = $tmp_paths[count($tmp_paths) - 1];
+}
+ */
         // nginx 会把 PATH_INFO 处理成 index.php
         if ($method == 'index.php') {
             $method = 'index.html';
             $tmp_paths[count($tmp_paths) - 1] = 'index.html';
         }
-        if ($method[0] == '_') throw new Exception("No Access for Controller $class_name | $method", 403);
+        if ($method[0] == '_') {
+            throw new Exception("No Access for Controller $class_name | $method", 403);
+        }
+
         MSVC::$_path = '/' . join('/', $tmp_paths);
 
         $method = str_replace([
             '.html',
-            '.php'
+            '.php',
         ], '', $method); // 如果是 .html 去掉 .html 就是控制器的方法
         $method = str_replace('.', '_', $method); // 如果是其他扩展名 将 . 替换为 _ 就是控制器的完整方法名
         unset($tmp_paths[count($tmp_paths) - 1]); // 去掉方法名，路径就是完整的控制器类路径
@@ -641,24 +839,44 @@ class MSVC
         $class_path = join('/', $tmp_paths) . '.php';
         $class_name = 'c_' . join('_', $tmp_paths);
 
-        if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) die("$class_path | $class_name | $method");
+        if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) {
+            return "$class_path | $class_name | $method";
+            // die("$class_path | $class_name | $method");
+        }
+
         // 定位文件
         $class_file = MSVC::_search('C', $class_path, $site);
-        if (!$class_file) throw new Exception("No Controller File $class_path", 404);
-        if (!class_exists($class_name)) include $class_file;
-        if (!class_exists($class_name)) throw new Exception("No Controller Class $class_file | $class_name", 404);
+        // self::_test_log(MSVC::$_path);
+        // self::_test_log($class_file);
+        if (!$class_file) {
+            throw new Exception("No Controller File $class_path", 404);
+        }
+
+        if (!class_exists($class_name)) {
+            include $class_file;
+        }
+
+        if (!class_exists($class_name)) {
+            throw new Exception("No Controller Class $class_file | $class_name", 404);
+        }
+
         return MSVC::_doCall($class_name, $method, null);
     }
 
     /**
      * 调用标签（控制器）
      */
-    static public function callTagController($path)
+    public static function callTagController($path)
     {
-        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) throw new Exception("Can't call Tag Controller [$path] in Service!");
+        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) {
+            throw new Exception("Can't call Tag Controller [$path] in Service!");
+        }
 
         list($class_name, $method) = explode(':', $path);
-        if (!$class_name) $class_name = 'index';
+        if (!$class_name) {
+            $class_name = 'index';
+        }
+
         $method = '_TAG_' . $method;
 
         $class_path = str_replace('.', '/', $class_name) . '.php';
@@ -667,39 +885,70 @@ class MSVC
 
         // 定位文件
         $class_file = MSVC::_search('C', $class_path, $site);
-        if (!$class_file) return [];
-        if (!class_exists($class_name)) include $class_file;
-        if (!class_exists($class_name)) return [];
+        if (!$class_file) {
+            return [];
+        }
+
+        if (!class_exists($class_name)) {
+            include $class_file;
+        }
+
+        if (!class_exists($class_name)) {
+            return [];
+        }
+
         return MSVC::_doCall($class_name, $method, null);
     }
 
     /**
      * 调用 Task
      */
-    static public function callTask($path)
+    public static function callTask($path)
     {
         $class_name = 'task_' . str_replace('.', '_', $path);
         $class_path = str_replace('.', '/', $path) . '.php';
 
         // 定位文件
         $class_file = MSVC::_search('TASK', $class_path, $site);
-        if (!$class_file) E("Task file $class_path not exists") || die("Task file $class_path not exists\n");
-        if (!class_exists($class_name)) include $class_file;
-        if (!class_exists($class_name)) E("Task $path not exists") || die("Task $path not exists\n");
+        if (!$class_file) {
+            if (!E("Task file $class_path not exists")) {
+                return "Task file $class_path not exists\n";
+            }
+        }
+
+        if (!class_exists($class_name)) {
+            include $class_file;
+        }
+
+        if (!class_exists($class_name)) {
+            if (!E("Task $path not exists")) {
+                return ("Task $path not exists\n");
+            }
+        }
+
         return MSVC::_doCall($class_name, 'run', null);
     }
 
     /**
      * 调用 Test
      */
-    static public function callTest($path)
+    public static function callTest($path)
     {
         $pos = strrpos($path, '.');
-        if ($pos === false) E("Test $path no method") || die("Test $path no method\n");
+        if ($pos === false) {
+            if (!E("Test $path no method")) {
+                return ("Test $path no method\n");
+            }
+        }
 
         // 取出对应的控制器的类和方法
         $method = substr($path, $pos + 1);
-        if ($method[0] == '_') E("Test $path No Access") || die("Test $path No Access\n");
+        if ($method[0] == '_') {
+            if (!E("Test $path No Access")) {
+                return ("Test $path No Access\n");
+            }
+        }
+
         $class_name = substr($path, 0, $pos);
 
         $class_path = str_replace('.', '/', $class_name) . '.php';
@@ -707,9 +956,22 @@ class MSVC
 
         // 定位文件
         $class_file = MSVC::_search('TEST', $class_path, $site);
-        if (!$class_file) E("Test file $class_path not exists") || die("Test file $class_path not exists\n");
-        if (!class_exists($class_name)) include $class_file;
-        if (!class_exists($class_name)) E("Test $path not exists") || die("Test $path not exists\n");
+        if (!$class_file) {
+            if (!E("Test file $class_path not exists")) {
+                return ("Test file $class_path not exists\n");
+            }
+        }
+
+        if (!class_exists($class_name)) {
+            include $class_file;
+        }
+
+        if (!class_exists($class_name)) {
+            if (!E("Test $path not exists")) {
+                return ("Test $path not exists\n");
+            }
+        }
+
         return MSVC::_doCall($class_name, $method, null);
     }
 
@@ -723,7 +985,7 @@ class MSVC
      */
     private static $_sercice_call_counting = 0;
 
-    static function callService($service_name, $args)
+    public static function callService($service_name, $args)
     {
         try {
             // TODO 判断配置 SERVICE 中 处理远程 Service
@@ -750,20 +1012,37 @@ class MSVC
 
             // curl .... json_decode
             $pos = strrpos($service_name, '.');
-            if ($pos === false) return FAILED('No Access', 403);
+            if ($pos === false) {
+                return FAILED('No Access', 403);
+            }
 
             // 取出对应的控制器的类和方法
             $method = substr($service_name, $pos + 1);
-            if ($method[0] == '_') return FAILED("No Access", 403);
+            if ($method[0] == '_') {
+                return FAILED("No Access", 403);
+            }
+
             $class_name = substr($service_name, 0, $pos);
             $class_path = str_replace('.', '/', $class_name) . '.php';
             $class_name = 's_' . str_replace('.', '_', $class_name);
-            if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) die("$class_path | $class_name | $method");
+            if (MSVC::$_display_errors && isset($_GET['d']) && !$_GET['d']) {
+                return ("$class_path | $class_name | $method");
+            }
+
             // 定位文件
             $class_file = MSVC::_search('S', $class_path, $site);
-            if (!$class_file) throw new Exception("No Service File $class_path", 404);
-            if (!class_exists($class_name)) include $class_file;
-            if (!class_exists($class_name)) throw new Exception("No Service Class $class_file | $class_name", 404);
+            if (!$class_file) {
+                throw new Exception("No Service File $class_path", 404);
+            }
+
+            if (!class_exists($class_name)) {
+                include $class_file;
+            }
+
+            if (!class_exists($class_name)) {
+                throw new Exception("No Service Class $class_file | $class_name", 404);
+            }
+
             MSVC::$_sercice_call_counting++;
             $result = MSVC::_doCall($class_name, $method, $args);
             MSVC::$_sercice_call_counting--;
@@ -775,7 +1054,7 @@ class MSVC
         }
     }
 
-    static private function _doCall($class_name, $method, $args)
+    private static function _doCall($class_name, $method, $args)
     {
         $is_controller = $args === null;
         // 验证参数（基于 _checks 设置自动验证）
@@ -786,16 +1065,26 @@ class MSVC
                 $action_checks_name = '_checks_' . $method;
                 $action_checks = $class_name::$$action_checks_name;
             }
-            if ($is_controller) $args = array_merge($_GET, $_POST); // 控制器同时验证 GET POST 参数
-            if (is_array($args)) foreach ($args as $k => $v) {
-                if ($has_action_checks)
-                    $reg = $action_checks[$k];
-                else
-                    $reg = $class_name::$_checks[$k];
-                if ($reg && !preg_match($reg, $v)) {
-                    MSVC::_makeError("Arg: $k=>$v [$reg] check failed at [$class_name $method]");
-                    if ($is_controller) throw new Exception("Arg $k=>$v check failed", 405);
-                    return FAILED("Arg: $k=>$v [$reg] check failed", 405);
+            if ($is_controller) {
+                $args = array_merge($_GET, $_POST);
+            }
+            // 控制器同时验证 GET POST 参数
+            if (is_array($args)) {
+                foreach ($args as $k => $v) {
+                    if ($has_action_checks) {
+                        $reg = $action_checks[$k];
+                    } else {
+                        $reg = $class_name::$_checks[$k];
+                    }
+
+                    if ($reg && !preg_match($reg, $v)) {
+                        MSVC::_makeError("Arg: $k=>$v [$reg] check failed at [$class_name $method]");
+                        if ($is_controller) {
+                            throw new Exception("Arg $k=>$v check failed", 405);
+                        }
+
+                        return FAILED("Arg: $k=>$v [$reg] check failed", 405);
+                    }
                 }
             }
         }
@@ -804,101 +1093,136 @@ class MSVC
 
         // 验证参数（调用 _willCall 进行验证） 返回 false 表示拒绝执行， true 表示通过检查，返回其他内容表示直接处理不需要再进行调用（相当于魔术方法）
         if (method_exists($class_obj, '_willCall')) {
-            if ($is_controller)
+            if ($is_controller) {
                 $tmp_result = call_user_func([
                     $class_obj,
-                    '_willCall'
+                    '_willCall',
                 ], $method);
-            else
+            } else {
                 $tmp_result = call_user_func([
                     $class_obj,
-                    '_willCall'
+                    '_willCall',
                 ], $method, $args);
+            }
+
             if ($tmp_result === false) {
-                if ($is_controller) throw new Exception("do willCall failed");
+                if ($is_controller) {
+                    throw new Exception("do willCall failed");
+                }
+
                 return FAILED("do willCall failed", 500);
             }
-            if ($tmp_result !== true && $tmp_result !== null) return $tmp_result;
+            if ($tmp_result !== true && $tmp_result !== null) {
+                return $tmp_result;
+            }
         }
 
         // 调用控制器进行处理
         if (!method_exists($class_obj, $method) && !method_exists($class_obj, '__call')) {
-            if ($is_controller) throw new Exception("No Method [$class_name $method]", 404);
+            if ($is_controller) {
+                throw new Exception("No Method [$class_name $method]", 404);
+            }
+
             return FAILED("No Method [$class_name $method]", 404);
         }
 
-        if ($is_controller)
+        if ($is_controller) {
             $result = call_user_func([
                 $class_obj,
-                $method
+                $method,
             ]);
-        else
+        } else {
             $result = call_user_func([
                 $class_obj,
-                $method
+                $method,
             ], $args);
+        }
 
         // 后置调用（调用 _didCall 进行验证） 返回 false 表示拒绝执行， true 表示通过检查， 返回其他内容表示直接处理不需要再进行调用（相当于魔术方法）
         if (method_exists($class_obj, '_didCall')) {
-            if ($is_controller)
+            if ($is_controller) {
                 $tmp_result = call_user_func([
                     $class_obj,
-                    '_didCall'
+                    '_didCall',
                 ], $method, $result);
-            else
+            } else {
                 $tmp_result = call_user_func([
                     $class_obj,
-                    '_didCall'
+                    '_didCall',
                 ], $method, $args, $result);
-            if ($tmp_result !== null) return $tmp_result;
+            }
+
+            if ($tmp_result !== null) {
+                return $tmp_result;
+            }
         }
 
         return $result;
     }
 
-    static function display($view_file, &$data)
+    public static function display($view_file, &$data)
     {
         if (is_array($view_file)) {
             $data = $view_file;
             $view_file = null;
         }
-        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) throw new Exception("Can't display View [$view_file] in Service!");
+        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting > 0) {
+            throw new Exception("Can't display View [$view_file] in Service!");
+        }
 
-        if (!$view_file) $view_file = str_replace('index/', '', MSVC::$_path);
+        if (!$view_file) {
+            $view_file = str_replace('index/', '', MSVC::$_path);
+        }
 
-        if (is_array($GLOBALS['V'])) extract($GLOBALS['V']);
+        if (is_array($GLOBALS['V'])) {
+            extract($GLOBALS['V']);
+        }
+
         extract($data);
         $cahce_file = MSVC::_makeViewFile($view_file);
         ob_start();
-        if ($cahce_file)
+        if ($cahce_file) {
             include $cahce_file;
-        else
+        } else {
             MSVC::_makeError("View file $view_file not exists.");
+        }
+
         $result = ob_get_contents();
         ob_end_clean();
         return $result;
     }
 
-    static private function _makeViewFile($view_file)
+    private static function _makeViewFile($view_file)
     {
         $file = MSVC::_search('V', $view_file, $site);
-        if (!$file) return; // view 不存在
+        if (!$file) {
+            return;
+        }
+        // view 不存在
         $cache_file = MSVC::$_config['VIEW_CACHE_PATH'] . MSVC::$_site . "/$view_file.php";
         $cache_info_file = MSVC::$_config['VIEW_CACHE_PATH'] . MSVC::$_site . "/$view_file.info";
 
         $file_mtime = filemtime($file);
         if (file_exists($cache_info_file) && file_exists($cache_file) && MSVC::$_config['DISABLE_VIEW_CACHE']) {
             $cached_mtime = @file_get_contents($cache_info_file);
-            if ($cached_mtime == $file_mtime) return $cache_file;
+            if ($cached_mtime == $file_mtime) {
+                return $cache_file;
+            }
         }
 
         $cache_file_path = dirname($cache_file);
-        if (!file_exists($cache_file_path)) mkdir($cache_file_path, 0755, true);
+        if (!file_exists($cache_file_path)) {
+            mkdir($cache_file_path, 0755, true);
+        }
+
         $view_src = file_get_contents($file);
 
         $view_dst = preg_replace('~<\?.*?\?>~is', '', $view_src);
         $view_dst = preg_replace(MSVC::$_site_view_tags[$site], MSVC::$_view_tag_replaces, $view_dst);
-        if (MSVC::$_site_view_replace[$site]) $view_dst = preg_replace(MSVC::$_site_view_replace[$site][0], MSVC::$_site_view_replace[$site][1], $view_dst);
+        if (MSVC::$_site_view_replace[$site]) {
+            $view_dst = preg_replace(MSVC::$_site_view_replace[$site][0], MSVC::$_site_view_replace[$site][1], $view_dst);
+        }
+
         file_put_contents($cache_file, $view_dst);
         file_put_contents($cache_info_file, $file_mtime);
         return $cache_file;
@@ -906,9 +1230,11 @@ class MSVC
 
     private static $_models = [];
 
-    static function getModel($model_name)
+    public static function getModel($model_name)
     {
-        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting <= 0) throw new Exception("Can't use Model [$model_name] without Service!");
+        if (!MSVC::$_config['ENABLE_MSVC_CROSS'] && MSVC::$_sercice_call_counting <= 0) {
+            throw new Exception("Can't use Model [$model_name] without Service!");
+        }
 
         $timeout = 3;
         $stringify = false;
@@ -919,27 +1245,38 @@ class MSVC
             list($db, $table) = explode('.', $model_name);
         }
 
-        if ($db && MSVC::$_config['DB'][$db]) list($dsn, $user, $pwd, $table_prefix, $options) = MSVC::$_config['DB'][$db];
+        if ($db && MSVC::$_config['DB'][$db]) {
+            list($dsn, $user, $pwd, $table_prefix, $options) = MSVC::$_config['DB'][$db];
+        }
+
         if (is_array($table_prefix)) {
             $options = $table_prefix;
             $table_prefix = '';
         }
-        if (!is_array($options)) $options = null;
-        if (!$table_prefix) $table_prefix = '';
+        if (!is_array($options)) {
+            $options = null;
+        }
+
+        if (!$table_prefix) {
+            $table_prefix = '';
+        }
+
         $real_table = $table_prefix . $table;
         $m = static::$_models[$model_name];
         if (!$m) {
             if ($db && $table) {
                 $class_name = "m_{$db}_{$table}";
                 $class_file = MSVC::_search('M', "$db/$table.php", $site);
-                if (!class_exists($class_name) && $class_file) include $class_file;
+                if (!class_exists($class_name) && $class_file) {
+                    include $class_file;
+                }
             }
             if ($class_file && class_exists($class_name)) {
                 $m = new $class_name($db, $real_table, [
                     $dsn,
                     $user,
                     $pwd,
-                    $options
+                    $options,
                 ], MSVC::$_config['MM'], MSVC::$_config['MM_OPTIONS']);
             } else {
                 // 使用默认的Model类
@@ -947,7 +1284,7 @@ class MSVC
                     $dsn,
                     $user,
                     $pwd,
-                    $options
+                    $options,
                 ], MSVC::$_config['MM'], MSVC::$_config['MM_OPTIONS']);
             }
             static::$_models[$model_name] = $m;
@@ -957,36 +1294,60 @@ class MSVC
 
     private static $_has_apc = null;
 
-    static private function _getCache($key, $files = null)
+    private static function _getCache($key, $files = null)
     {
-        if (MSVC::$_has_apc === null) MSVC::$_has_apc = function_exists('apc_fetch');
-        if (!MSVC::$_has_apc) return null;
+        if (MSVC::$_has_apc === null) {
+            MSVC::$_has_apc = function_exists('apc_fetch');
+        }
 
-        if (!$files) $files = [
-            $key
-        ];
-        if (!is_array($files)) $files = [
-            $files
-        ];
+        if (!MSVC::$_has_apc) {
+            return null;
+        }
+
+        if (!$files) {
+            $files = [
+                $key,
+            ];
+        }
+
+        if (!is_array($files)) {
+            $files = [
+                $files,
+            ];
+        }
+
         foreach ($files as $file) {
             $cache_mtime = apc_fetch($key . 'mtime');
-            if (file_exists($file) && (!$cache_mtime || intval(@filemtime($file)) != $cache_mtime)) return null;
+            if (file_exists($file) && (!$cache_mtime || intval(@filemtime($file)) != $cache_mtime)) {
+                return null;
+            }
         }
         return apc_fetch($key);
     }
 
-    static private function _setCache($key, $data, $files = null)
+    private static function _setCache($key, $data, $files = null)
     {
         D($files);
-        if (!MSVC::$_has_apc) return;
-        if (!$files) $files = [
-            $key
-        ];
-        if (!is_array($files)) $files = [
-            $files
-        ];
+        if (!MSVC::$_has_apc) {
+            return;
+        }
+
+        if (!$files) {
+            $files = [
+                $key,
+            ];
+        }
+
+        if (!is_array($files)) {
+            $files = [
+                $files,
+            ];
+        }
+
         foreach ($files as $file) {
-            if (file_exists($file)) apc_store($key . 'mtime', intval(@filemtime($file)));
+            if (file_exists($file)) {
+                apc_store($key . 'mtime', intval(@filemtime($file)));
+            }
         }
         apc_store($key, $data);
     }
@@ -994,25 +1355,30 @@ class MSVC
     private static $_langs = [];
     private static $_cur_lang_set = null;
 
-    static function getLang($text, $langs = null)
+    public static function getLang($text, $langs = null)
     {
         $text_l = strtolower($text);
         if (!$langs) {
             if (!MSVC::$_cur_lang_set) {
                 $al = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-                if (!$al) return $text;
+                if (!$al) {
+                    return $text;
+                }
+
                 MSVC::$_cur_lang_set = $al[2] == '-' ? [
                     substr($al, 0, 5),
-                    substr($al, 0, 2)
+                    substr($al, 0, 2),
                 ] : [
-                    substr($al, 0, 2)
+                    substr($al, 0, 2),
                 ];
             }
             $langs = MSVC::$_cur_lang_set;
         } else {
-            if (!is_array($langs)) $langs = [
-                $langs
-            ];
+            if (!is_array($langs)) {
+                $langs = [
+                    $langs,
+                ];
+            }
         }
 
         foreach ($langs as $lang) {
@@ -1027,7 +1393,10 @@ class MSVC
                     $fp = fopen($lang_file, 'r');
                     if ($fp) {
                         while ($line = fgets($fp)) {
-                            if ($line[0] == '#') continue; // #开头为注释
+                            if ($line[0] == '#') {
+                                continue;
+                            }
+                            // #开头为注释
                             list($k, $v) = explode("\t", $line, 2);
                             MSVC::$_langs[$lang][strtolower(trim($k))] = trim($v);
                         }
@@ -1036,12 +1405,14 @@ class MSVC
                     MSVC::_setCache($lang_file, MSVC::$_langs[$lang]);
                 }
             }
-            if (MSVC::$_langs[$lang] && MSVC::$_langs[$lang][$text_l]) return MSVC::$_langs[$lang][$text_l];
+            if (MSVC::$_langs[$lang] && MSVC::$_langs[$lang][$text_l]) {
+                return MSVC::$_langs[$lang][$text_l];
+            }
         }
         return $text;
     }
 
-    static function getConfig($name)
+    public static function getConfig($name)
     {
         return MSVC::$_config[$name];
     }
@@ -1073,25 +1444,28 @@ class Model
     private $_read_pdo_infos = [];
     private $_pdo_options = [];
 
-    function __construct($db, $table, $db_info, $mm_servers, $mm_options)
+    public function __construct($db, $table, $db_info, $mm_servers, $mm_options)
     {
         $this->_mm_servers = $mm_servers;
         $this->_mm_options = $mm_options;
         $this->_mm_prefix = "{$db}.{$table}_";
 
-        if (!$db_info) return;
+        if (!$db_info) {
+            return;
+        }
+
         list($dsn, $user, $pwd, $options) = $db_info;
         $this->_write_pdo_info = [
             $dsn,
             $user,
-            $pwd
+            $pwd,
         ];
         $this->_read_pdo_infos = [
             [
                 $dsn,
                 $user,
-                $pwd
-            ]
+                $pwd,
+            ],
         ];
         if (strstr($dsn, '|')) {
             // mysql:host=w.db:3306|w.db:3307;dbname=GY_AUTH
@@ -1102,15 +1476,16 @@ class Model
                     $this->_write_pdo_info = [
                         $m[1] . $hosts[0] . $m[3],
                         $user,
-                        $pwd
+                        $pwd,
                     ];
                     $this->_read_pdo_infos = [];
-                    for ($i = count($hosts) - 1; $i >= 1; $i--)
+                    for ($i = count($hosts) - 1; $i >= 1; $i--) {
                         $this->_read_pdo_infos[] = [
                             $m[1] . $hosts[$i] . $m[3],
                             $user,
-                            $pwd
+                            $pwd,
                         ];
+                    }
                 }
             }
         }
@@ -1122,7 +1497,7 @@ class Model
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_EMULATE_PREPARES => false,
                 PDO::ATTR_STRINGIFY_FETCHES => false,
-                PDO::ATTR_PERSISTENT => false
+                PDO::ATTR_PERSISTENT => false,
             ];
         }
         $this->_pdo_options = $options;
@@ -1133,22 +1508,37 @@ class Model
     private function _initPDO($read_or_write)
     {
         if ($read_or_write == 'write') {
-            if ($this->_write_pdo) return $this->_write_pdo;
+            if ($this->_write_pdo) {
+                return $this->_write_pdo;
+            }
+
             list($dsn, $user, $pwd) = $this->_write_pdo_info;
         } else {
-            if ($this->_read_pdo) return $this->_read_pdo;
+            if ($this->_read_pdo) {
+                return $this->_read_pdo;
+            }
+
             $r_i = 0;
             $r_num = count($this->_read_pdo_infos);
-            if ($r_num > 1) $r_i = rand(0, $r_num - 1);
+            if ($r_num > 1) {
+                $r_i = rand(0, $r_num - 1);
+            }
+
             list($dsn, $user, $pwd) = $this->_read_pdo_infos[$r_i];
         }
 
         $pdo_key = "$dsn, $user, $pwd";
         $pdo = Model::$_pdo_caches[$pdo_key];
         if (!$pdo) {
-            if ($pwd) $pwd = base64_decode($pwd);
+            if ($pwd) {
+                $pwd = base64_decode($pwd);
+            }
+
             $pdo = new PDO($dsn, $user, $pwd, $this->_pdo_options);
-            if (!$pdo) throw new Exception("No db conntion by [$dsn, $user]");
+            if (!$pdo) {
+                throw new Exception("No db conntion by [$dsn, $user]");
+            }
+
             Model::$_pdo_caches[$pdo_key] = $pdo;
         }
 
@@ -1162,26 +1552,44 @@ class Model
 
     private function _initMM()
     {
-        if ($this->_mm) return;
+        if ($this->_mm) {
+            return;
+        }
+
         $this->_mm = new Memcached('MM_POOL');
-        if ($this->_mm->getServerList()) return;
-        if ($this->_mm_options) $this->_mm->setOptions($this->_mm_options);
-        if ($this->_mm_servers) $this->_mm->addServers($this->_mm_servers);
+        if ($this->_mm->getServerList()) {
+            return;
+        }
+
+        if ($this->_mm_options) {
+            $this->_mm->setOptions($this->_mm_options);
+        }
+
+        if ($this->_mm_servers) {
+            $this->_mm->addServers($this->_mm_servers);
+        }
     }
 
     public function get($key)
     {
-        if (!$this->_mm) $this->_initMM();
+        if (!$this->_mm) {
+            $this->_initMM();
+        }
+
         return $this->_mm->get($this->_mm_prefix . $key);
     }
 
     public function set($key, $value, $expires = 0)
     {
-        if (!$this->_mm) $this->_initMM();
-        if ($value === null)
+        if (!$this->_mm) {
+            $this->_initMM();
+        }
+
+        if ($value === null) {
             return $this->_mm->delete($this->_mm_prefix . $key);
-        else
+        } else {
             return $this->_mm->set($this->_mm_prefix . $key, $value, $expires);
+        }
     }
 
     public function cache($cache_time)
@@ -1225,19 +1633,22 @@ class Model
         } else {
             $where = $wheres;
             $where_args = is_string($args) ? [
-                $args
+                $args,
             ] : $args;
         }
         return [
             $where,
-            $where_args
+            $where_args,
         ];
     }
 
-    function find($wheres = '1', $args = [])
+    public function find($wheres = '1', $args = [])
     {
         $this->_clear_query();
-        if (!$this->_table) return $this; // 未指定表名不允许执行 find
+        if (!$this->_table) {
+            return $this;
+        }
+        // 未指定表名不允许执行 find
 
         list($where, $where_args) = $this->_makeWheres($wheres, $args);
         $this->_where = ' where ' . $where;
@@ -1246,9 +1657,12 @@ class Model
         return $this;
     }
 
-    function join($table, $wheres, $args = [])
+    public function join($table, $wheres, $args = [])
     {
-        if (!$this->_table) return $this; // 未指定表名不允许执行 find
+        if (!$this->_table) {
+            return $this;
+        }
+        // 未指定表名不允许执行 find
 
         list($where, $where_args) = $this->_makeWheres($wheres, $args);
         $this->_join .= " left join $table on " . $where;
@@ -1257,36 +1671,40 @@ class Model
         return $this;
     }
 
-    function order($orders)
+    public function order($orders)
     {
-        if (is_array($orders))
+        if (is_array($orders)) {
             $this->_order = ' order by ' . join(',', $orders);
-        else
+        } else {
             $this->_order = ' order by ' . $orders;
+        }
+
         return $this;
     }
 
-    function group($groups)
+    public function group($groups)
     {
-        if (is_array($groups))
+        if (is_array($groups)) {
             $this->_group = ' group by ' . join(',', $groups);
-        else
+        } else {
             $this->_group = ' group by ' . $groups;
+        }
+
         return $this;
     }
 
-    function limit($num)
+    public function limit($num)
     {
         $this->_group = ' limit ' . $num;
         return $this;
     }
 
-    function query($sql, $args = [])
+    public function query($sql, $args = [])
     {
         $this->_clear_query();
         $this->_full_sql = $sql;
         $this->_full_sql_args = is_string($args) ? [
-            $args
+            $args,
         ] : $args;
         return $this;
     }
@@ -1307,7 +1725,7 @@ class Model
                 $sql,
                 microtime(true) - $start_time,
                 $args,
-                ''
+                '',
             ];
             return $return_q ? $q : $isok;
         } catch (Exception $ex) {
@@ -1316,7 +1734,7 @@ class Model
                 $sql,
                 microtime(true) - $start_time,
                 $args,
-                $ex->getMessage()
+                $ex->getMessage(),
             ];
             throw new Exception($ex->getMessage() . "\n------------------------------\n" . $this->getLastSql() . "\n------------------------------");
         }
@@ -1328,28 +1746,45 @@ class Model
             $this->_last_sql = $this->_full_sql;
             $this->_last_sql_args = $this->_full_sql_args;
         } else if ($this->_table) {
-            if (is_array($fields)) $fields = '`' . join('`,`', $fields) . '`';
-            if (!$fields) $fields = '*';
+            if (is_array($fields)) {
+                $fields = '`' . join('`,`', $fields) . '`';
+            }
+
+            if (!$fields) {
+                $fields = '*';
+            }
+
             $sql = "select $fields from `" . $this->_table . '`' . $this->_join . $this->_where . $this->_order . $this->_group;
-            if ($make_first && !stristr($sql, 'limit')) $sql .= ' limit 1';
+            if ($make_first && !stristr($sql, 'limit')) {
+                $sql .= ' limit 1';
+            }
+
             $this->_last_sql = $sql;
             $this->_last_sql_args = $this->_join_args ? array_merge($this->_join_args, $this->_where_args) : $this->_where_args;
         } else {
             return null;
         }
-        if ($this->_cache_time < 0) return $this->_exec($this->_last_sql, $this->_last_sql_args, true);
+        if ($this->_cache_time < 0) {
+            return $this->_exec($this->_last_sql, $this->_last_sql_args, true);
+        }
 
         // 使用缓存
-        $cache_sql_key = preg_replace('/[^a-zA-Z0-9\x{4e00}-\x{9fff}]/u', '',
+        $cache_sql_key = preg_replace(
+            '/[^a-zA-Z0-9\x{4e00}-\x{9fff}]/u',
+            '',
             str_replace([
                 'select',
                 'from',
                 'where',
                 'orderby',
                 'groupby',
-                'leftjoin'
-            ], '', strtolower($this->_last_sql . join('', array_values($this->_last_sql_args)))));
-        if ($cache_sql_key > 250) $cache_sql_key = md5($cache_sql_key) . substr($cache_sql_key, 0, 218 - strlen($this->_mm_prefix));
+                'leftjoin',
+            ], '', strtolower($this->_last_sql . join('', array_values($this->_last_sql_args))))
+        );
+        if ($cache_sql_key > 250) {
+            $cache_sql_key = md5($cache_sql_key) . substr($cache_sql_key, 0, 218 - strlen($this->_mm_prefix));
+        }
+
         $result = $this->get($cache_sql_key);
         if (!$result) {
             $result = $this->_exec($this->_last_sql, $this->_last_sql_args, true);
@@ -1358,23 +1793,24 @@ class Model
         return $result;
     }
 
-    function first($fields = null, $return_col1 = false)
+    public function first($fields = null, $return_col1 = false)
     {
         $q = $this->_doSelect($fields);
         $r = $q->fetch($return_col1 ? PDO::FETCH_NUM : PDO::FETCH_ASSOC);
 
-        if ($return_col1 && $r)
+        if ($return_col1 && $r) {
             return $r[0];
-        else
+        } else {
             return $r;
+        }
     }
 
-    function count()
+    public function count()
     {
         return $this->first("count(*)", true);
     }
 
-    function all($fields = null, $is_num_array = false, $return_col1 = false)
+    public function all($fields = null, $is_num_array = false, $return_col1 = false)
     {
         $q = $this->_doSelect($fields);
         if ($return_col1) {
@@ -1388,41 +1824,50 @@ class Model
         return $q->fetchAll($is_num_array ? PDO::FETCH_NUM : PDO::FETCH_ASSOC);
     }
 
-    function kv($fields = null, $id_field = null)
+    public function kv($fields = null, $id_field = null)
     {
         $q = $this->_doSelect($fields);
         $all_by_id = array();
         $fetch_type = !$id_field ? PDO::FETCH_NUM : PDO::FETCH_ASSOC;
         while ($r = $q->fetch($fetch_type)) {
-            if (!$id_field)
+            if (!$id_field) {
                 $all_by_id[$r[0]] = $r[1];
-            else
+            } else {
                 $all_by_id[$r[$id_field]] = $r;
+            }
         }
         return $all_by_id;
     }
 
-    function _makeTree($datas, $make_func, $id_field, $parent_field, $children_field, $parent, $level)
+    public function _makeTree($datas, $make_func, $id_field, $parent_field, $children_field, $parent, $level)
     {
         $list = [];
         foreach ($datas as $node) {
-            if ($node[$parent_field] != $parent) continue;
-            if ($make_func && is_callable($make_func) && $new_node = call_user_func($make_func, $node, $level)) $node = $new_node;
+            if ($node[$parent_field] != $parent) {
+                continue;
+            }
+
+            if ($make_func && is_callable($make_func) && $new_node = call_user_func($make_func, $node, $level)) {
+                $node = $new_node;
+            }
+
             $node[$children_field] = $this->_makeTree($datas, $make_func, $id_field, $parent_field, $children_field, $node[$id_field], $level + 1);
             $list[] = $node;
         }
         return $list ? $list : null;
     }
 
-    function tree($fields = null, $make_func = null, $id_field = 'id', $parent_field = 'parent', $children_field = 'children', $parent = 0)
+    public function tree($fields = null, $make_func = null, $id_field = 'id', $parent_field = 'parent', $children_field = 'children', $parent = 0)
     {
         $datas = $this->all($fields);
         return $this->_makeTree($datas, $make_func, $id_field, $parent_field, $children_field, $parent, 0);
     }
 
-    function insert($data, $use_replace = false)
+    public function insert($data, $use_replace = false)
     {
-        if (!$this->_table || !$data || !is_array($data)) return false;
+        if (!$this->_table || !$data || !is_array($data)) {
+            return false;
+        }
 
         $key_list_a = [];
         $var_list_a = [];
@@ -1447,14 +1892,16 @@ class Model
         return $this->_exec($sql, $values);
     }
 
-    function replace($data)
+    public function replace($data)
     {
         return $this->insert($data, true);
     }
 
-    function update($data)
+    public function update($data)
     {
-        if (!$this->_table || !$data || !is_array($data) || !$this->_where) return false;
+        if (!$this->_table || !$data || !is_array($data) || !$this->_where) {
+            return false;
+        }
 
         $direct_vars = [];
         foreach ($data as $key => $value) {
@@ -1472,7 +1919,9 @@ class Model
         if ($direct_vars) {
             $key_list .= ($key_list ? ',' : '') . join(',', $direct_vars);
         }
-        if ($this->_where_args) $values = array_merge($values, $this->_where_args);
+        if ($this->_where_args) {
+            $values = array_merge($values, $this->_where_args);
+        }
 
         $sql = "update `" . $this->_table . "` set $key_list" . $this->_where;
         $this->_last_sql = $sql;
@@ -1480,48 +1929,61 @@ class Model
         return $this->_exec($sql, $values);
     }
 
-    function delete()
+    public function delete()
     {
-        if (!$this->_table || !$this->_where) return false;
+        if (!$this->_table || !$this->_where) {
+            return false;
+        }
 
         $sql = "delete from `" . $this->_table . "`" . $this->_where;
         return $this->_exec($sql, $this->_where_args);
     }
 
-    function begin()
+    public function begin()
     {
-        if (!$this->_write_pdo) $this->_initPDO('write');
+        if (!$this->_write_pdo) {
+            $this->_initPDO('write');
+        }
+
         $this->_write_pdo->beginTransaction();
         return $this;
     }
 
-    function end($isok = true)
+    public function end($isok = true)
     {
-        if (!$this->_write_pdo) $this->_initPDO('write');
-        if ($isok)
+        if (!$this->_write_pdo) {
+            $this->_initPDO('write');
+        }
+
+        if ($isok) {
             $this->_write_pdo->commit();
-        else
+        } else {
             $this->_write_pdo->rollBack();
+        }
+
         return $this;
     }
 
-    function getLastInsertID()
+    public function getLastInsertID()
     {
-        if (!$this->_write_pdo) $this->_initPDO('write');
+        if (!$this->_write_pdo) {
+            $this->_initPDO('write');
+        }
+
         return $this->_write_pdo->lastInsertId();
     }
 
-    function getLastSql()
+    public function getLastSql()
     {
         return $this->_last_sql . ' [' . join(', ', $this->_last_sql_args) . ']';
     }
 
-    function getLastErrorCode()
+    public function getLastErrorCode()
     {
         return $this->_last_pdo ? $this->_last_pdo->errorCode() : 0;
     }
 
-    function getLastError()
+    public function getLastError()
     {
         return $this->_last_pdo ? $this->_last_pdo->errorInfo() : '';
     }
@@ -1532,32 +1994,44 @@ abstract class Task
     protected $task_name = '';
     protected $info = [];
 
-    function _willCall()
+    public function _willCall()
     {
         $this->task_name = str_replace('_', '.', str_replace('task_', '', get_called_class()));
         $this->info = $this->info();
         $now_time = intval(date('Hi'));
-        if ($this->info['start'] && $now_time < $this->info['start']) $this->log("[NORUN]	$now_time < " . $this->info['start']) ||
-        die("[NORUN]	$now_time < " . $this->info['start'] . "\n");
-        if ($this->info['stop'] && $now_time > $this->info['stop']) $this->log("[NORUN]	$now_time > " . $this->info['stop']) ||
-        die("[NORUN]	$now_time > " . $this->info['stop'] . "\n");
+        if ($this->info['start'] && $now_time < $this->info['start']) {
+            if (!$this->log("[NORUN]	$now_time < " . $this->info['start'])) {
+                return ("[NORUN]	$now_time < " . $this->info['start'] . "\n");
+            }
+        }
+
+        if ($this->info['stop'] && $now_time > $this->info['stop']) {
+            if (!$this->log("[NORUN]	$now_time > " . $this->info['stop'])) {
+                return ("[NORUN]	$now_time > " . $this->info['stop'] . "\n");
+            }
+        }
+
         $running_num = trim(`ps ax | grep {$this->task_name} | grep -v grep | wc -l`);
-        if ($running_num > 1) $this->log("[RUNNING]	$running_num {$this->task_name} is running") ||
-        die("[RUNNING]	$running_num {$this->task_name} is running\n");
+        if ($running_num > 1) {
+            if (!$this->log("[RUNNING]	$running_num {$this->task_name} is running")) {
+                return ("[RUNNING]	$running_num {$this->task_name} is running\n");
+            }
+        }
+
         set_time_limit($this->info['timeout'] ?: 86400);
         $this->log('[START]');
     }
 
     abstract protected function info();
 
-    abstract function run();
+    abstract public function run();
 
-    function log($message)
+    public function log($message)
     {
         MSVC::log($message, 'task/' . $this->task_name);
     }
 
-    function _didCall()
+    public function _didCall()
     {
         $this->log('[STOP]');
     }
@@ -1627,7 +2101,7 @@ function S($service_name, $args = [])
         $service_name,
         microtime(true) - $start_time,
         $args,
-        $r['code']
+        $r['code'],
     ];
     return $r;
 }
@@ -1645,7 +2119,7 @@ function V($view_file = null, $data = [])
     MSVC::$_call_logs[] = [
         'V',
         $view_file,
-        microtime(true) - $start_time
+        microtime(true) - $start_time,
     ];
     return $r;
 }
@@ -1662,7 +2136,7 @@ function C($path)
     MSVC::$_call_logs[] = [
         'C',
         $path,
-        microtime(true) - $start_time
+        microtime(true) - $start_time,
     ];
     return $r;
 }
@@ -1709,14 +2183,15 @@ function D($message)
 function P($message)
 {
     echo "\n";
-    if (is_string($message))
+    if (is_string($message)) {
         echo $message;
-    else
+    } else {
         echo json_encode($message, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    echo "\n";
-    exit;
-}
+    }
 
+    echo "\n";
+    //exit;
+}
 
 /**
  * *
@@ -1728,7 +2203,7 @@ function OK($data = null)
     return [
         'code' => 200,
         'message' => 'OK',
-        'data' => $data
+        'data' => $data,
     ];
 }
 
@@ -1742,7 +2217,7 @@ function FAILED($message, $code = 500, $data = null)
     return [
         'code' => $code,
         'message' => $message,
-        'data' => $data
+        'data' => $data,
     ];
 }
 
@@ -1754,9 +2229,14 @@ function FAILED($message, $code = 500, $data = null)
  */
 function IN($values)
 {
-    if (!is_array($values)) return '()';
-    foreach ($values as &$v)
+    if (!is_array($values)) {
+        return '()';
+    }
+
+    foreach ($values as &$v) {
         $v = addslashes($v);
+    }
+
     return "('" . join("','", $values) . "')";
 }
 
@@ -1766,27 +2246,33 @@ function IN($values)
 function DATAPATH($path)
 {
     $new_path = MSVC::getConfig('DATA_PATH') . $path;
-    if ($new_path[strlen($new_path) - 1] != '/') $new_path .= '/';
-    if (!file_exists($new_path)) mkdir($new_path, 0755, true);
+    if ($new_path[strlen($new_path) - 1] != '/') {
+        $new_path .= '/';
+    }
+
+    if (!file_exists($new_path)) {
+        mkdir($new_path, 0755, true);
+    }
+
     return $new_path;
 }
 
 /*
-   * ------------------------------ 启动处理
-   * -------------------------------
-   */
+ * ------------------------------ 启动处理
+ * -------------------------------
+ */
 // if( PHP_SAPI == 'cli' )
 // {
-// 	if( $argc < 2 ) die( "Usage:\n php index.php TASK package.taskclass args\n php index.php TEST package.class.testaction args\n" );
-// 	$mode = $argv[1];
-// 	if( in_array( $mode, [
-// 		'TEST',
-// 		'TASK'
-// 	] ) ) {
-// 		MSVC::init( '..' );
-// 		echo MSVC::start( $mode );
-// 	}
+//     if( $argc < 2 ) die( "Usage:\n php index.php TASK package.taskclass args\n php index.php TEST package.class.testaction args\n" );
+//     $mode = $argv[1];
+//     if( in_array( $mode, [
+//         'TEST',
+//         'TASK'
+//     ] ) ) {
+//         MSVC::init( '..' );
+//         echo MSVC::start( $mode );
+//     }
 // }
 // else {
-// 	MSVC( '..' );
-// } 
+//     MSVC( '..' );
+// }

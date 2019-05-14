@@ -36,6 +36,8 @@ $configs = [
             // You must add --enable-openssl while compiling Swoole
             'ssl_cert_file' => null,
             'ssl_key_file' => null,
+            //启用http2
+            'open_http2_protocol' => true,
         ],
     ],
     /*

@@ -96,13 +96,10 @@ class HttpServer
             $this->info('> (You can run this command to ensure the swoole_http_server process is running: ps aux|grep "swoole")');
         }
 
-        
-
         $this->registerManager();
         $this->manager->run();
     }
 
-    
     /**
      * Stop swoole_http_server.
      */

@@ -2,6 +2,26 @@
 class Caller
 {
     /**
+     * 存放所有与其他节点的http2长连
+     * [
+     *     'appName' => Coroutine\Http2\Client
+     *     ...
+     * ]
+     */
+
+    private $swooleHttp2Clients;
+
+
+
+    //服务注册发现中心
+    private $discover;
+
+    public function __construct(&$discover)
+    {
+        var_dump('this is discover->__construct');
+        $this->discover = &$discover;
+    }
+    /**
      * GET方式调用其他Service
      *
      * @param $app app名字
@@ -10,8 +30,8 @@ class Caller
      */
     public function get($app, string $path, array $headers)
     {
+        var_dump('this is Caller->get');
         return $this->_do('GET', $app, $path, [], $headers);
-
     }
 
     /**
@@ -25,7 +45,6 @@ class Caller
     public function post($app, string $path, array $data, array $headers)
     {
         return $this->_do('POST', $app, $path, $data, $headers);
-
     }
 
     /**
@@ -36,7 +55,7 @@ class Caller
      * @param $data 发送数据
      * @param $headers header头
      */
-    public function put($app, string $path, array $data, string...$headers)
+    public function put($app, string $path, array $data, string ...$headers)
     {
         return $this->_do('PUT', $app, $path, $data, $headers);
     }
@@ -49,7 +68,7 @@ class Caller
      * @param $data 发送数据
      * @param $headers header头
      */
-    public function delete($app, string $path, array $data, string...$headers)
+    public function delete($app, string $path, array $data, string ...$headers)
     {
         return $this->_do('DELETE', $app, $path, $data, $headers);
     }
@@ -62,7 +81,7 @@ class Caller
      * @param $data 发送数据
      * @param $headers header头
      */
-    public function head($app, string $path, array $data, string...$headers)
+    public function head($app, string $path, array $data, string ...$headers)
     {
         return $this->_do('HEAD', $app, $path, $data, $headers);
     }
@@ -77,6 +96,68 @@ class Caller
      */
     private function _do($method, $app, string $path, array $data, $headers)
     {
+        $cli = $this->_getHttp2Client($app);
+
+        $req = new swoole_http2_request;
+        $req->method = $method;
+        $req->path = $path;
+        $req->headers = $headers;
+        $req->data = $data;
+        $cli->send($req);
+        $response = $cli->recv();
+
+        return $response;
     }
 
+    /**
+     * 获取http2长连
+     */
+    private function _getHttp2Client($app)
+    {
+        if (isset($this->swooleHttp2Clients[$app])) {
+            //更新该节点信息
+            $appNodes = $this->discover->fetchApp($app);
+            if (!isset($appNodes[$app])) {
+                $appNode = $appNodes[$app];
+                echo '节点信息:';
+                var_dump($appNode);
+                //多个节点情况下随机选一个
+                $i = rand(0, count($appNode) - 1);
+
+                $node_info = $appNode[$i];
+
+                echo '节点信息:';
+                var_dump($node_info);
+
+                if (isset($this->swooleHttp2Clients[$app][$i])) {
+                    //http2连接已存在直接返回
+                    return $this->swooleHttp2Clients[$app][$i];
+                }
+
+                $this->swooleHttp2Clients[$app][$i] = $this->_newHttp2Clients($node_info);
+            } else {
+                new \Exception($app . '节点信息不存在');
+            }
+
+            //连接已存在
+            return $this->swooleHttp2Clients[$app][$i];
+        } else {
+            //创建连接并保存
+            return $this->swooleHttp2Clients[$app] = $this->_newHttp2Clients($app);
+        }
+    }
+
+    /**
+     * 创建http2长连
+     */
+    private function _newHttp2Clients($node_info)
+    {
+        $domain = $node_info['addr'];
+        $port = $node_info['addr'];
+        $cli = new Swoole\Coroutine\Http2\Client($domain, $port);
+        $cli->set([
+            'timeout' => -1,
+        ]);
+        return $cli->connect();
+    }
 }
