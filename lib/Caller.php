@@ -18,7 +18,7 @@ class Caller
 
     public function __construct(&$discover)
     {
-        var_dump('this is discover->__construct');
+        // var_dump('this is Caller->__construct');
         $this->discover = &$discover;
     }
     /**
@@ -30,7 +30,7 @@ class Caller
      */
     public function get($app, string $path, array $headers)
     {
-        var_dump('this is Caller->get');
+        // var_dump('this is Caller->get');
         return $this->_do('GET', $app, $path, [], $headers);
     }
 
@@ -97,7 +97,9 @@ class Caller
     private function _do($method, $app, string $path, array $data, $headers)
     {
         $cli = $this->_getHttp2Client($app);
-
+        // echo 'this is Caller->_do $cli:';
+        // var_dump($cli);
+        // return;
         $req = new swoole_http2_request;
         $req->method = $method;
         $req->path = $path;
@@ -114,37 +116,45 @@ class Caller
      */
     private function _getHttp2Client($app)
     {
-        if (isset($this->swooleHttp2Clients[$app])) {
-            //更新该节点信息
-            $appNodes = $this->discover->fetchApp($app);
-            if (!isset($appNodes[$app])) {
-                $appNode = $appNodes[$app];
-                echo '节点信息:';
-                var_dump($appNode);
-                //多个节点情况下随机选一个
-                $i = rand(0, count($appNode) - 1);
+        // if (isset($this->swooleHttp2Clients[$app])) {
+        //更新该节点信息
+        $appNodes = $this->discover->fetchApp($app);
+        if (isset($appNodes[$app])) {
+            $appNode = array_values($appNodes[$app]);
+            // echo '节点信息:';
+            // var_dump($appNode);
+            //多个节点情况下随机选一个
+            $i = rand(0, count($appNode) - 1);
 
-                $node_info = $appNode[$i];
+            // $node_info = json_decode($appNode[$i], true);
+            $node_info = $appNode[$i];
 
-                echo '节点信息:';
-                var_dump($node_info);
+            // echo '节点信息:';
+            // var_dump($node_info);
+            // exit;
 
-                if (isset($this->swooleHttp2Clients[$app][$i])) {
-                    //http2连接已存在直接返回
-                    return $this->swooleHttp2Clients[$app][$i];
-                }
-
-                $this->swooleHttp2Clients[$app][$i] = $this->_newHttp2Clients($node_info);
-            } else {
-                new \Exception($app . '节点信息不存在');
+            if (isset($this->swooleHttp2Clients[$app][$i]) && $this->swooleHttp2Clients[$app][$i]->connected) {
+                var_dump('链接已存在，并且未失效，直接返回');
+                //http2连接已存在直接返回
+                return $this->swooleHttp2Clients[$app][$i];
             }
-
-            //连接已存在
+            // return;
+            $this->swooleHttp2Clients[$app][$i] = $this->_newHttp2Clients($node_info);
             return $this->swooleHttp2Clients[$app][$i];
         } else {
-            //创建连接并保存
-            return $this->swooleHttp2Clients[$app] = $this->_newHttp2Clients($app);
+            // echo 'this is Caller ERROR';
+            // var_dump($appNodes[$app]);
+            // var_dump($app);
+            // var_dump($appNodes);
+            throw new Exception($app . '节点信息不存在');
         }
+
+        //连接已存在
+        // return $this->swooleHttp2Clients[$app][$i];
+        // } else {
+        //     //创建连接并保存
+        //     return $this->swooleHttp2Clients[$app] = $this->_newHttp2Clients($app);
+        // }
     }
 
     /**
@@ -152,12 +162,14 @@ class Caller
      */
     private function _newHttp2Clients($node_info)
     {
+
         $domain = $node_info['addr'];
-        $port = $node_info['addr'];
+        $port = $node_info['port'];
         $cli = new Swoole\Coroutine\Http2\Client($domain, $port);
         $cli->set([
             'timeout' => -1,
         ]);
-        return $cli->connect();
+        $cli->connect();
+        return $cli;
     }
 }

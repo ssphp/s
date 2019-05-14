@@ -14,6 +14,17 @@ class c_msvc
     public function index()
     {
         // var_dump('this is msvc->index');
+        // var_dump(MSVC::$caller);
+        /**
+         * GET方式调用其他Service
+         *
+         * @param $app app名字
+         * @param $path 路由
+         * @param $headers header头
+         */
+        $res = MSVC::$caller->get('s1', '/Andy/fullName/fullName/fullName', []);
+        // echo 'this is c_msvc->index $res:';
+        // var_dump($res);
         return ['code' => 200, "FullName" => "this is msvc msvc-swoole"];
     }
 

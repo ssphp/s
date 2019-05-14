@@ -19,7 +19,7 @@ class Manager
     /**
      * 与其他service的http2长连
      */
-    private $caller;
+    public $caller;
 
     /**
      * 服务发现&注册中心
@@ -112,7 +112,7 @@ class Manager
     {
         $config = $this->configs['server']['options'];
 
-        var_dump($config);
+        // var_dump($config);
         $this->server->set($config);
     }
 
@@ -191,16 +191,17 @@ class Manager
 
         $app = $this->getApplication();
         var_dump('this is Manager->onRequest app->start 1');
+        var_dump($request);
 
         //将swoole的response传递到框架中
         $app::$swoole_response = $response;
         $data = $app::start('MSVC');
-        var_dump('this is Manager->onRequest app->start 2');
+        var_dump('this is Manager->onRequest app->end ');
 
         var_dump($data);
         if (!$this->server->exist($request->fd)) {
-            var_dump('$request->fd is null');
-            var_dump($request->fd);
+            // var_dump('$request->fd is null');
+            // var_dump($request->fd);
 
             return;
         }

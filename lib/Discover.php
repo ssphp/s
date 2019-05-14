@@ -28,7 +28,7 @@ class Discover
 
     public function __construct($service_config = __DIR__ . '/../service_config.php')
     {
-        var_dump('this is Discover->__construct');
+        // var_dump('this is Discover->__construct');
         $this->loadConfigs($service_config);
         if (!$this->config) {
             throw new \Exception('无法加载 ' . $service_config);
@@ -66,6 +66,7 @@ class Discover
                 //logInfo("remove node", "node", node, "nodes", appNodes[app])
                 // //通知所有节点，该节点下线
                 // $this->pushAddNode($appName, $val['addr'], 0);
+
                 //本地节点信息更新
                 $this->pushNode($appName, $val['addr'], $val['port'], 0);
             }
@@ -74,10 +75,18 @@ class Discover
         foreach ($appNodesResults as $key => $val) {
             $weight = $val;
             //logInfo("update node", "nodes", appNodes[app])
+            // echo 'this is Discover->fetchApp:';
+            // var_dump($val);
+
+            $temp = explode(':', $key);
+            $addr = $temp[0];
+            $port = $temp[1];
+
             //本地节点信息更新
-            $this->pushNode($appName, $val['addr'], $val['port'], $weight);
+            $this->pushNode($appName, $addr, $port, $weight);
         }
-        var_dump($this->appNodes);
+        // echo 'this is Discover->fetchApp $this->appNodes:';
+        // var_dump($this->appNodes);
         return $this->appNodes;
     }
 
@@ -86,12 +95,12 @@ class Discover
      */
     public function sync()
     {
-        var_dump('this is Discover->sync');
+        // var_dump('this is Discover->sync');
         $appNodes = &$this->appNodes;
         $redis = &$this->redis;
 
         while (true) {
-            var_dump('this is Discover->sync while');
+            // var_dump('this is Discover->sync while');
 
             $appNodes_sub = [];
             //针对每一个应用集群节点变更队列，开启一个监听
@@ -188,15 +197,14 @@ class Discover
      */
     private function pushNode($appName, $addr, $port, $weight)
     {
-
         if ($weight == 0) {
             //删除节点
             if (isset($this->appNodes[$appName][$addr])) {
                 unset($this->appNodes[$appName][$addr]);
             }
-        } else if (isset($this->appNodes[$appName][$addr])) {
+        } else if (!isset($this->appNodes[$appName][$addr])) {
             //新节点处理
-            $this->appNodes[$appName][$addr] = json_encode(['addr' => $addr, 'port' => $port, 'weight' => $weight]);
+            $this->appNodes[$appName][$addr] = ['addr' => $addr, 'port' => $port, 'weight' => $weight];
         } else if ($this->appNodes[$appName][$addr] != $weight) {
             //修改权重
             $this->appNodes[$appName][$addr]['weight'] = $weight;

@@ -85,12 +85,6 @@ class MSVC
 
     public static $caller;
 
-    /**
-     * 调用其他服务
-     */
-    public static function caller()
-    { }
-
     public static function header($string, $value = '', $replace = true, $http_response_code = 0)
     {
         if (self::$is_swoole) {
@@ -721,7 +715,6 @@ class MSVC
                 return $result;
             }
         } catch (Exception $ex) {
-
             // 处理后置回调
             if (MSVC::$_mode == 'MS') {
                 self::header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
