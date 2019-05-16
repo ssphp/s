@@ -134,12 +134,16 @@ class Caller
             // exit;
 
             if (isset($this->swooleHttp2Clients[$app][$i]) && $this->swooleHttp2Clients[$app][$i]->connected) {
+                var_dump($this->swooleHttp2Clients[$app][$i]);
                 var_dump('链接已存在，并且未失效，直接返回');
                 //http2连接已存在直接返回
                 return $this->swooleHttp2Clients[$app][$i];
             }
             // return;
             $this->swooleHttp2Clients[$app][$i] = $this->_newHttp2Clients($node_info);
+            // echo 'this is http2Client:';
+            // var_dump($this->swooleHttp2Clients[$app][$i]);
+
             return $this->swooleHttp2Clients[$app][$i];
         } else {
             // echo 'this is Caller ERROR';

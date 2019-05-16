@@ -286,34 +286,100 @@ class MSVC
 
     public static function log($message, $case = 'info')
     {
-        if (!is_string($message)) {
-            $message = json_encode($message, JSON_UNESCAPED_UNICODE);
-        }
 
-        $log_time = date('Y-m-d H:i:s');
-        if ($case == 'error') {
-            ob_start();
-            debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-            $trace = ob_get_contents();
-            ob_end_clean();
-            MSVC::$_all_errors[] = "$log_time	$message";
-            $message = "$message\n$trace";
-        }
-        $message = "$log_time	$message\n";
+        //--------------------------------------------------------------------------
+        // var_dump(__DIR__ . "/../vendor/slog/config/log.php");
 
-        $log_file_path = MSVC::$_config['LOG_PATH'] . (MSVC::$_site ? MSVC::$_site : 'default') . '/' . $case;
-        if (!file_exists($log_file_path)) {
-            mkdir($log_file_path, 0755, true);
-        }
 
-        $log_file_file = $log_file_path . '/' . date('Ymd') . '.log';
-        if (file_put_contents($log_file_file, $message, FILE_APPEND) === false) {
-            openlog('MSVC', LOG_PID, LOG_LOCAL0);
-            syslog(LOG_WARNING, "MSVC log file [$log_file_file] can't access!\n[$case] " . $message);
-            closelog();
-        }
 
-        MSVC::$_all_errors = [];
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/LogInterface.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Standard.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Write.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Log.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/FormatterInterface.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/Json.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Filter/Filter.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Debug.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Info.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Warning.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Error.php";
+        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/DBError.php";
+
+        // $config = require_once __DIR__ . "/../vendor/slog/config/log.php";
+        // var_dump($config);
+        $config = [
+            //日志对应级别
+            'levels' => ['debug' => 1, 'info' => 2, 'warning' => 3, 'error' => 4],
+            //日志类型
+            'types' => ['debug', 'info', 'warning', 'error', 'undefined', 'db', 'server', 'task', 'monitor', 'statistic', 'request'],
+            //stacks内容过滤关键字
+            'truncations' => ["github"],
+            //日志内容过滤字段
+            'sensitive' => ["phone", "password", "name", "token", "accessToken"],
+            //日志内容过滤匹配字段
+            'regexSensitive' => ["|1\d{10}|"],
+            //日志内容过滤规则
+            'sensitiveRule' => ["12:4*4", "11:3*4", "7:2*2", "3:1*1", "2:1*0"],
+            //日志记录级别
+            'level' => 'debug',
+            //日志存放路径
+            'file' => __DIR__ . '/../logs/msvc-swoole.log',
+            'formatter' => 'Json'
+        ];
+
+        $info = new Slog\Logger\Info($config);
+        $arr = ['traceId' => 23];
+        if (is_array($message)) {
+            $arr = array_merge($arr, $message);
+        } else {
+            $arr['info'] = $message;
+        }
+        $info->content($arr);
+        // var_dump($result);
+        // $debug = new Slog\Logger\DBError($config);
+
+        // $result = $debug->content([
+        //     'dbType' => 'mysql',
+        //     'dsn' => 'mysql:host=sdfadfadsf.mysql.rds.aliyuncs.com:3306;dbname=temp',
+        //     'callStacks' => ['index.php line 1', 'test.php line 2'],
+        //     'query' => '',
+        //     'args' => '',
+        //     'usedTime' => '',
+        //     'error' => "connect time out",
+        // ]);
+
+        // var_dump($result);
+        //--------------------------------------------------------------------------
+
+
+        // if (!is_string($message)) {
+        //     $message = json_encode($message, JSON_UNESCAPED_UNICODE);
+        // }
+
+        // $log_time = date('Y-m-d H:i:s');
+        // if ($case == 'error') {
+        //     ob_start();
+        //     debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        //     $trace = ob_get_contents();
+        //     ob_end_clean();
+        //     MSVC::$_all_errors[] = "$log_time	$message";
+        //     $message = "$message\n$trace";
+        // }
+        // $message = "$log_time	$message\n";
+
+        // $log_file_path = MSVC::$_config['LOG_PATH'] . (MSVC::$_site ? MSVC::$_site : 'default') . '/' . $case;
+        // if (!file_exists($log_file_path)) {
+        //     mkdir($log_file_path, 0755, true);
+        // }
+
+        // $log_file_file = $log_file_path . '/' . date('Ymd') . '.log';
+        // if (file_put_contents($log_file_file, $message, FILE_APPEND) === false) {
+        //     openlog('MSVC', LOG_PID, LOG_LOCAL0);
+        //     syslog(LOG_WARNING, "MSVC log file [$log_file_file] can't access!\n[$case] " . $message);
+        //     closelog();
+        // }
+
+        // MSVC::$_all_errors = [];
     }
 
     public static function getAllErrors()

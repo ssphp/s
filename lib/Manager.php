@@ -190,15 +190,16 @@ class Manager
         $_SERVER['HTTP_HOST'] = $_SERVER['REMOTE_ADDR'];
 
         $app = $this->getApplication();
-        var_dump('this is Manager->onRequest app->start 1');
-        var_dump($request);
+        // var_dump('this is Manager->onRequest app->start 1');
+        // var_dump($request);
 
         //将swoole的response传递到框架中
         $app::$swoole_response = $response;
         $data = $app::start('MSVC');
-        var_dump('this is Manager->onRequest app->end ');
+        // var_dump('this is Manager->onRequest app->end ');
 
-        var_dump($data);
+        // var_dump($data);
+        $app::log(['info' => '接收到Gateway调用，返回数据：', 'data' => $data]);
         if (!$this->server->exist($request->fd)) {
             // var_dump('$request->fd is null');
             // var_dump($request->fd);

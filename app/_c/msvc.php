@@ -25,6 +25,7 @@ class c_msvc
         $res = MSVC::$caller->get('s1', '/Andy/fullName/fullName/fullName', []);
         // echo 'this is c_msvc->index $res:';
         // var_dump($res);
+        MSVC::log(['info' => '调用节点[s1]返回信息', 'data' => $res->data]);
         return ['code' => 200, "FullName" => "this is msvc msvc-swoole"];
     }
 

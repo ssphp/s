@@ -61,16 +61,22 @@ class Discover
         $this->_checkRedis();
 
         $appNodesResults = $this->redis->hGetall($appName);
-        foreach ($this->appNodes[$appName] as $key => $val) {
-            if (empty($appNodesResults[$val['addr']])) {
-                //logInfo("remove node", "node", node, "nodes", appNodes[app])
-                // //通知所有节点，该节点下线
-                // $this->pushAddNode($appName, $val['addr'], 0);
+        if (empty($appNodesResults)) {
+            throw new Exception($appName . '节点信息为空');
+        }
+        if (!empty($this->appNodes[$appName])) {
+            foreach ($this->appNodes[$appName] as $key => $val) {
+                if (empty($appNodesResults[$val['addr']])) {
+                    //logInfo("remove node", "node", node, "nodes", appNodes[app])
+                    // //通知所有节点，该节点下线
+                    // $this->pushAddNode($appName, $val['addr'], 0);
 
-                //本地节点信息更新
-                $this->pushNode($appName, $val['addr'], $val['port'], 0);
+                    //本地节点信息更新
+                    $this->pushNode($appName, $val['addr'], $val['port'], 0);
+                }
             }
         }
+
 
         foreach ($appNodesResults as $key => $val) {
             $weight = $val;
