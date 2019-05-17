@@ -112,7 +112,6 @@ class Manager
     {
         $config = $this->configs['server']['options'];
 
-        // var_dump($config);
         $this->server->set($config);
     }
 
@@ -190,19 +189,19 @@ class Manager
         $_SERVER['HTTP_HOST'] = $_SERVER['REMOTE_ADDR'];
 
         $app = $this->getApplication();
-        // var_dump('this is Manager->onRequest app->start 1');
-        // var_dump($request);
+
 
         //将swoole的response传递到框架中
-        $app::$swoole_response = $response;
-        $data = $app::start('MSVC');
-        // var_dump('this is Manager->onRequest app->end ');
+        $app::$swoole_response = &$response;
 
-        // var_dump($data);
-        $app::log(['info' => '接收到Gateway调用，返回数据：', 'data' => $data]);
+        $data = $app::start('MSVC');
+        // $app::log(['request ' => (array)$request, ' data ' => $data]);
+
+
+
         if (!$this->server->exist($request->fd)) {
-            // var_dump('$request->fd is null');
-            // var_dump($request->fd);
+            var_dump('$request->fd is null');
+            var_dump($request->fd);
 
             return;
         }
@@ -216,7 +215,8 @@ class Manager
         }
 
         if (!empty(json_decode($data, true))) {
-            $response->header('Content-Type', 'application/json; charset=UTF-8');
+            var_dump('Content-Type: ' . 'application/json;charset=UTF-8');
+            $response->header('Content-Type',  'application/json;charset=UTF-8');
         }
 
         $response->end($data);
@@ -245,9 +245,9 @@ class Manager
      */
     protected function getApplication()
     {
-        if (!is_object($this->application)) {
-            $this->createApplication();
-        }
+        // if (!is_object($this->application)) {
+        //     $this->createApplication();
+        // }
 
         return $this->application;
     }
@@ -267,7 +267,7 @@ class Manager
      */
     private function _destroy()
     {
-        $host = $this->configs['server']['host'];
+        $host  = $this->configs['server']['host'];
         $port = $this->configs['server']['port'];
         $this->discover->destroy($host, $port);
     }
@@ -279,7 +279,7 @@ class Manager
      */
     private function _serviceStart(string $ip, int $port)
     {
-        include __DIR__ . '/Discover.php';
+        include   __DIR__ .   '/Discover.php';
         $this->discover = new Discover();
         $this->discover->register($ip, $port);
     }
@@ -342,8 +342,8 @@ class Manager
         if (PHP_OS === static::MAC_OSX) {
             return;
         }
-        $serverName = 'swoole_http_server';
-        $appName = 'msvc:swoole';
+        $serverName =  'swoole_http_server';
+        $appName =  'msvc:swoole';
 
         $name = sprintf('%s: %s for %s', $serverName, $process, $appName);
 

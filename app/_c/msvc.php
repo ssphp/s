@@ -13,8 +13,6 @@ class c_msvc
      */
     public function index()
     {
-        // var_dump('this is msvc->index');
-        // var_dump(MSVC::$caller);
         /**
          * GET方式调用其他Service
          *
@@ -22,11 +20,15 @@ class c_msvc
          * @param $path 路由
          * @param $headers header头
          */
-        $res = MSVC::$caller->get('s1', '/Andy/fullName/fullName/fullName', []);
-        // echo 'this is c_msvc->index $res:';
-        // var_dump($res);
-        MSVC::log(['info' => '调用节点[s1]返回信息', 'data' => $res->data]);
-        return ['code' => 200, "FullName" => "this is msvc msvc-swoole"];
+        // $res = MSVC::$caller->get('s1', '/Andy/fullName/fullName/fullName', []);
+
+        // MSVC::log(['info' => '调用节点[s1]返回信息', 'data' => $res->data]);
+
+        // MSVC::log(['info' => '调用节点[s1]返回信息', 'data' => $res->data]);
+
+        MSVC::log(['info' => 'this is ssphp msvc->index']);
+
+        return ['code' => 200, "FullName" => "this is ssphp"];
     }
 
     /**

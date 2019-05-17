@@ -288,25 +288,20 @@ class MSVC
     {
 
         //--------------------------------------------------------------------------
-        // var_dump(__DIR__ . "/../vendor/slog/config/log.php");
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Standard/LogInterface.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Standard.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Write.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Log.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/FormatterInterface.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/Json.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Filter/Filter.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Debug.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Info.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Warning.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Error.php";
+        require_once __DIR__ . "/../vendor/slog/src/Slog/Logger/DBError.php";
 
 
-
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/LogInterface.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Standard.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Write.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Standard/Log.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/FormatterInterface.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Formatter/Json.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Filter/Filter.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Debug.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Info.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Warning.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/Error.php";
-        include_once __DIR__ . "/../vendor/slog/src/Slog/Logger/DBError.php";
-
-        // $config = require_once __DIR__ . "/../vendor/slog/config/log.php";
-        // var_dump($config);
         $config = [
             //日志对应级别
             'levels' => ['debug' => 1, 'info' => 2, 'warning' => 3, 'error' => 4],
@@ -317,7 +312,7 @@ class MSVC
             //日志内容过滤字段
             'sensitive' => ["phone", "password", "name", "token", "accessToken"],
             //日志内容过滤匹配字段
-            'regexSensitive' => ["|1\d{10}|"],
+            //'regexSensitive' => ["|1\d{10}|"],
             //日志内容过滤规则
             'sensitiveRule' => ["12:4*4", "11:3*4", "7:2*2", "3:1*1", "2:1*0"],
             //日志记录级别
@@ -335,21 +330,8 @@ class MSVC
             $arr['info'] = $message;
         }
         $info->content($arr);
-        // var_dump($result);
-        // $debug = new Slog\Logger\DBError($config);
 
-        // $result = $debug->content([
-        //     'dbType' => 'mysql',
-        //     'dsn' => 'mysql:host=sdfadfadsf.mysql.rds.aliyuncs.com:3306;dbname=temp',
-        //     'callStacks' => ['index.php line 1', 'test.php line 2'],
-        //     'query' => '',
-        //     'args' => '',
-        //     'usedTime' => '',
-        //     'error' => "connect time out",
-        // ]);
-
-        // var_dump($result);
-        //--------------------------------------------------------------------------
+        //------------------------------------------------------------------------------------------------------
 
 
         // if (!is_string($message)) {
@@ -539,12 +521,6 @@ class MSVC
         }
     }
 
-    private static function _test_log($msg, $title = '')
-    {
-        echo "\n\n--------------------------------------- $title--------------------------------------\n";
-        var_dump($msg);
-        echo "--------------------------------------end $title--------------------------------------\n\n";
-    }
 
     /**
      * 启动
@@ -735,10 +711,10 @@ class MSVC
             }
             // 输出结果
             if (is_string($output)) {
-                //                if (strpos(MSVC::$_path, '.html') !== false) header('Content-Type: text/html; charset=UTF-8');
+                if (strpos(MSVC::$_path, '.html') !== false) self::header('Content-Type: text/html; charset=UTF-8');
                 echo $output;
             } else if ($output !== null) {
-                // header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
+                self::header('Content-Type: ' . MSVC::$_config['JSON_CONTENT_TYPE']);
                 echo json_encode($output, $mode[0] != 'T' ? JSON_UNESCAPED_UNICODE : JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
 
@@ -905,8 +881,7 @@ $method = $tmp_paths[count($tmp_paths) - 1];
 
         // 定位文件
         $class_file = MSVC::_search('C', $class_path, $site);
-        // self::_test_log(MSVC::$_path);
-        // self::_test_log($class_file);
+
         if (!$class_file) {
             throw new Exception("No Controller File $class_path", 404);
         }

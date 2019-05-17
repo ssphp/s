@@ -90,10 +90,10 @@ class HttpServer
         $host = $this->configs['server']['host'];
         $port = $this->configs['server']['port'];
 
-        $this->info('Starting swoole http server...');
-        $this->info("Swoole http server started: <http://{$host}:{$port}>");
+        // $this->info('Starting swoole http server...');
+        // $this->info("Swoole http server started: <http://{$host}:{$port}>");
         if ($this->isDaemon()) {
-            $this->info('> (You can run this command to ensure the swoole_http_server process is running: ps aux|grep "swoole")');
+            // $this->info('> (You can run this command to ensure the swoole_http_server process is running: ps aux|grep "swoole")');
         }
 
         $this->registerManager();
@@ -258,7 +258,7 @@ class HttpServer
         $path = $this->getPidPath();
         // var_dump($path);
         if (file_exists($path)) {
-            $pid = (int) file_get_contents($path);
+            $pid = (int)file_get_contents($path);
 
             if (!$pid) {
                 $this->removePidFile();

@@ -28,7 +28,6 @@ class Discover
 
     public function __construct($service_config = __DIR__ . '/../service_config.php')
     {
-        // var_dump('this is Discover->__construct');
         $this->loadConfigs($service_config);
         if (!$this->config) {
             throw new \Exception('无法加载 ' . $service_config);
@@ -67,10 +66,6 @@ class Discover
         if (!empty($this->appNodes[$appName])) {
             foreach ($this->appNodes[$appName] as $key => $val) {
                 if (empty($appNodesResults[$val['addr']])) {
-                    //logInfo("remove node", "node", node, "nodes", appNodes[app])
-                    // //通知所有节点，该节点下线
-                    // $this->pushAddNode($appName, $val['addr'], 0);
-
                     //本地节点信息更新
                     $this->pushNode($appName, $val['addr'], $val['port'], 0);
                 }
@@ -80,9 +75,7 @@ class Discover
 
         foreach ($appNodesResults as $key => $val) {
             $weight = $val;
-            //logInfo("update node", "nodes", appNodes[app])
-            // echo 'this is Discover->fetchApp:';
-            // var_dump($val);
+
 
             $temp = explode(':', $key);
             $addr = $temp[0];
@@ -91,8 +84,7 @@ class Discover
             //本地节点信息更新
             $this->pushNode($appName, $addr, $port, $weight);
         }
-        // echo 'this is Discover->fetchApp $this->appNodes:';
-        // var_dump($this->appNodes);
+
         return $this->appNodes;
     }
 
@@ -101,12 +93,10 @@ class Discover
      */
     public function sync()
     {
-        // var_dump('this is Discover->sync');
         $appNodes = &$this->appNodes;
         $redis = &$this->redis;
 
         while (true) {
-            // var_dump('this is Discover->sync while');
 
             $appNodes_sub = [];
             //针对每一个应用集群节点变更队列，开启一个监听
@@ -118,26 +108,7 @@ class Discover
         }
     }
 
-    /**
-     * redis节点信息变更队列订阅回调方法
-     */
-    // public function fetchApp($redis, $chan, $msg)
-    // {
-    //     $msg_temp = explode(' ', $msg);
-    //     $addr = explode(':', $msg_temp[0])[0];
-    //     $port = explode(':', $msg_temp[0])[1];
-    //     $weight = 0;
-    //     if (isset($msg_temp[1])) {
-    //         $weight = $msg_temp[1];
-    //     }
-    //     $appName = str_replace(
-    //         $this->config['service']['registryPrefix'] . 'CH_',
-    //         '',
-    //         $chan
-    //     );
-    //     //log
-    //     $this->pushNode($appName, $addr, $port, $weight);
-    // }
+
 
     /**
      * 注册服务
@@ -167,9 +138,9 @@ class Discover
         );
 
         //通知其他节点，本节点上线
-        echo "\n 通知其他节点，本节点上线。appname:" . $this->config['service']['appName']
-            . ",serviceIp:$serviceIp,port:$port,weight:"
-            . $this->config['service']['weight'] . " \n";
+        // echo "\n 通知其他节点，本节点上线。appname:" . $this->config['service']['appName']
+        //     . ",serviceIp:$serviceIp,port:$port,weight:"
+        //     . $this->config['service']['weight'] . " \n";
         $this->pushAddNode(
             $this->config['service']['appName'],
             $serviceIp,
@@ -224,8 +195,8 @@ class Discover
     {
         $this->_checkRedis();
 
-        echo "\n 推送节点信息 " . $this->config['service']['registryPrefix'] . 'CH_' . $appName
-            . ',' . $addr . ':' . $port . ' ' . $weight . "\n";
+        // echo "\n 推送节点信息 " . $this->config['service']['registryPrefix'] . 'CH_' . $appName
+        //     . ',' . $addr . ':' . $port . ' ' . $weight . "\n";
         $this->redis->publish(
             $this->config['service']['registryPrefix'] . 'CH_' . $appName,
             $addr . ':' . $port . ' ' . $weight
@@ -251,13 +222,6 @@ class Discover
         $this->redis = new Redis();
         $this->redis->pconnect($this->config['redis']['address'], $this->config['redis']['port']);
         $this->redis->setOption(Redis::OPT_READ_TIMEOUT, -1);
-
-        // $this->redis = new Co\Redis();
-        // $this->redis->connect($this->config['redis']['address'], $this->config['redis']['port']);
-        // $this->redis->setOptions([
-        //     'compatibility_mode' => true, 
-        //     'connect_timeout' => -1
-        // ]);
 
         //授权
         if (!empty($this->config['redis']['password'])) {
