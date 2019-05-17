@@ -1,2 +1,6 @@
 logs/
 data/
+.vscode/
+config.php
+user_config.php
+swoole_config.php
